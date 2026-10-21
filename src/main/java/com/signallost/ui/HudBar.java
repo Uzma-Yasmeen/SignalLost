@@ -80,9 +80,15 @@ public final class HudBar extends JPanel {
         if (state.fog().isRevealAll()) {
             x = drawChip(g, x, "DEV REVEAL", Palette.ACCENT, Glyph.DOT);
         }
+        if (state.wasSpotted()) {
+            x = drawChip(g, x, "SPOTTED", Palette.DANGER, Glyph.DOT);
+        }
         GuardMode alert = state.highestAlertLevel();
         if (alert != null && alert != GuardMode.PATROL) {
             x = drawChip(g, x, alert.label().toUpperCase(), alertColour(alert), Glyph.DOT);
+        }
+        if (state.sightings() > 0) {
+            x = drawChip(g, x, "SEEN " + state.sightings(), Palette.GUARD_ALERT, Glyph.DOT);
         }
         if (state.canUndo()) {
             x = drawChip(g, x, "UNDO " + state.undoDepth(), Palette.ACCENT, Glyph.DOT);
@@ -138,8 +144,17 @@ public final class HudBar extends JPanel {
         g.fill(diamond);
     }
 
+    /**
+     * Turns taken, over the limit when the level has one.
+     *
+     * <p>The number changes colour as the clock runs down, so the pressure is
+     * felt on the glance rather than only on the arithmetic.
+     */
     private void drawTurnCounter(Graphics2D g, int rightEdge) {
-        String number = String.valueOf(state.turnsTaken());
+        String number = state.hasTurnLimit()
+                ? state.turnsTaken() + "/" + state.turnLimit()
+                : String.valueOf(state.turnsTaken());
+        String label = state.hasTurnLimit() ? "TURNS LEFT " + state.turnsRemaining() : "TURNS";
 
         g.setFont(Fonts.mono(22f));
         FontMetrics numberMetrics = g.getFontMetrics();
@@ -147,16 +162,28 @@ public final class HudBar extends JPanel {
 
         g.setFont(Fonts.body(11f));
         FontMetrics labelMetrics = g.getFontMetrics();
-        int labelWidth = labelMetrics.stringWidth("TURNS");
+        int labelWidth = labelMetrics.stringWidth(label);
 
         int blockWidth = Math.max(numberWidth, labelWidth);
         int x = rightEdge - blockWidth;
 
         g.setColor(Palette.TEXT_DIM);
-        g.drawString("TURNS", x + (blockWidth - labelWidth) / 2, 46);
+        g.drawString(label, x + (blockWidth - labelWidth) / 2, 46);
 
-        g.setColor(Palette.TEXT);
+        g.setColor(clockColour());
         g.setFont(Fonts.mono(22f));
         g.drawString(number, x + (blockWidth - numberWidth) / 2, 32);
+    }
+
+    /** Pale while there is room, amber when the clock tightens, red at the end. */
+    private Color clockColour() {
+        if (!state.hasTurnLimit()) {
+            return Palette.TEXT;
+        }
+        double left = (double) state.turnsRemaining() / state.turnLimit();
+        if (left <= 0.10) {
+            return Palette.DANGER;
+        }
+        return left <= 0.25 ? Palette.GUARD_ALERT : Palette.TEXT;
     }
 }

@@ -32,10 +32,14 @@ public final class GameState {
      */
     private static final int GUARD_AVOIDANCE_COST = 8;
 
+    /** A turn limit of this value means the level is untimed. */
+    public static final int NO_TURN_LIMIT = 0;
+
     private final GameMap map;
     private final FogOfWar fog;
     private final Position exit;
     private final List<Guard> guards;
+    private final int turnLimit;
     private final Deque<Command> history = new ArrayDeque<>();
 
     // Written only by commands in this package; read by everyone through getters.
@@ -43,15 +47,23 @@ public final class GameState {
     int turnsTaken;
     boolean hasKey;
     boolean escaped;
+    int sightings;
+    boolean spotted;
+    boolean failed;
 
     /** A level with no guards, which is how most rule tests are set up. */
     public GameState(GameMap map, int sightRadius) {
-        this(map, List.of(), sightRadius);
+        this(map, List.of(), sightRadius, NO_TURN_LIMIT);
     }
 
     public GameState(GameMap map, List<Guard> guards, int sightRadius) {
+        this(map, guards, sightRadius, NO_TURN_LIMIT);
+    }
+
+    public GameState(GameMap map, List<Guard> guards, int sightRadius, int turnLimit) {
         this.map = map;
         this.guards = List.copyOf(guards);
+        this.turnLimit = Math.max(NO_TURN_LIMIT, turnLimit);
         Position start = map.findFirst(TileType.START);
         if (start == null) {
             throw new IllegalArgumentException("Level has no start tile '@'");
@@ -75,7 +87,7 @@ public final class GameState {
      *         already-finished level refused it
      */
     public boolean movePlayer(Direction direction) {
-        if (escaped) {
+        if (isFinished()) {
             return false;
         }
         Position target = direction.applyTo(player);
@@ -202,5 +214,48 @@ public final class GameState {
 
     public boolean hasEscaped() {
         return escaped;
+    }
+
+    // ------------------------------------------------- spotting and the clock
+
+    /**
+     * True when the turn just taken ended with the player inside a guard's
+     * sight.
+     *
+     * <p>Being seen is not the end of the run. It is counted, and the player can
+     * take the move back, which is what makes the game a puzzle you work out
+     * rather than one you lose by surprise.
+     */
+    public boolean wasSpotted() {
+        return spotted;
+    }
+
+    /** How many turns have ended with the player in sight, across the run. */
+    public int sightings() {
+        return sightings;
+    }
+
+    /** The turn limit, or {@link #NO_TURN_LIMIT} when the level is untimed. */
+    public int turnLimit() {
+        return turnLimit;
+    }
+
+    public boolean hasTurnLimit() {
+        return turnLimit != NO_TURN_LIMIT;
+    }
+
+    /** Turns left before the run fails, or -1 when the level is untimed. */
+    public int turnsRemaining() {
+        return hasTurnLimit() ? Math.max(0, turnLimit - turnsTaken) : -1;
+    }
+
+    /** True when the turn limit ran out before the player got away. */
+    public boolean hasFailed() {
+        return failed;
+    }
+
+    /** Escaped or out of time: either way, no more moves are accepted. */
+    public boolean isFinished() {
+        return escaped || failed;
     }
 }

@@ -3,6 +3,7 @@ package com.signallost.level;
 import com.signallost.guard.Guard;
 import com.signallost.guard.GuardFactory;
 import com.signallost.model.GameMap;
+import com.signallost.model.GameState;
 import com.signallost.model.TileType;
 
 import java.io.BufferedReader;
@@ -24,9 +25,12 @@ import java.util.List;
  * #@...E#
  * #######
  * ---
+ * turns 120
  * patroller 1,1 1,5
  * hunter 1,3
  * </pre>
+ *
+ * <p>A {@code turns} line sets the turn limit; without one the level is untimed.
  *
  * <p>The guard section is optional, so the grid alone is still a valid level.
  * Keeping levels as text means one can be edited in any editor and reviewed in a
@@ -34,8 +38,11 @@ import java.util.List;
  */
 public final class LevelLoader {
 
-    /** Separates the grid from the guard list. */
+    /** Separates the grid from the settings and guard list. */
     private static final String SECTION_BREAK = "---";
+
+    /** The keyword that sets a level's turn limit. */
+    private static final String TURN_LIMIT_KEYWORD = "turns";
 
     private LevelLoader() {
     }
@@ -82,12 +89,40 @@ public final class LevelLoader {
 
         GameMap map = parse(gridLines);
         List<Guard> guards = new ArrayList<>();
-        for (int i = 0; i < guardLines.size(); i++) {
-            Guard guard = GuardFactory.fromSpecification(guardLines.get(i), i + 1);
-            requirePostable(map, guard, guardLines.get(i));
+        int turnLimit = GameState.NO_TURN_LIMIT;
+
+        for (String line : guardLines) {
+            if (startsWithKeyword(line, TURN_LIMIT_KEYWORD)) {
+                turnLimit = parseTurnLimit(line);
+                continue;
+            }
+            Guard guard = GuardFactory.fromSpecification(line, guards.size() + 1);
+            requirePostable(map, guard, line);
             guards.add(guard);
         }
-        return new Level(name, map, guards);
+        return new Level(name, map, guards, turnLimit);
+    }
+
+    private static boolean startsWithKeyword(String line, String keyword) {
+        String[] parts = line.trim().split("\s+", 2);
+        return parts.length > 0 && parts[0].equalsIgnoreCase(keyword);
+    }
+
+    private static int parseTurnLimit(String line) {
+        String[] parts = line.trim().split("\s+");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException(
+                    "Expected a turn limit as 'turns <number>' but found: " + line);
+        }
+        try {
+            int limit = Integer.parseInt(parts[1]);
+            if (limit <= 0) {
+                throw new IllegalArgumentException("A turn limit must be positive: " + line);
+            }
+            return limit;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Turn limit is not a number: " + line, e);
+        }
     }
 
     /** Parses lines of level symbols into a map. */

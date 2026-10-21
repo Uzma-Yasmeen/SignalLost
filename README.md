@@ -10,7 +10,9 @@ Built step by step.
 - **Step 2 — done.** The Command pattern and the undo stack, plus six characters.
 - **Step 3 — done.** A\* pathfinding, patrolling and hunting guards, hints, and
   pixel-art characters.
-- **Step 4 — next.** Being spotted, and the turn limit.
+- **Step 4 — done.** Being spotted, the red line-of-sight overlay, and the turn
+  limit.
+- **Step 5 — next.** A sentinel guard with a rotating vision cone.
 
 ## Running it
 
@@ -24,7 +26,7 @@ Or run `com.signallost.Main` from your IDE. Pick a character, then:
 | --- | --- |
 | arrow keys, or W A S D | move one tile, which costs one turn |
 | space, or `.` | wait one turn |
-| `U` | undo the last turn, guards included |
+| `U` | undo the last turn: guards, sightings and the clock included |
 | `H` | show or hide the suggested route |
 | `M` | developer toggle: reveal the whole map |
 | `R` | restart the level |
@@ -36,8 +38,9 @@ Tests:
 mvn -q test
 ```
 
-61 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
-behaviour, hints, level integrity and the window's select-to-level wiring.
+80 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+behaviour, hints, spotting, the turn limit, level integrity and the window's
+select-to-level wiring.
 
 ## How the code is laid out
 
@@ -127,6 +130,27 @@ A guard's whole turn is one immutable `GuardState` — position, mode, patrol
 progress, and the memory of where you were. That is what makes undo exact: the
 turn is a swap, so taking it back is swapping the old value straight back.
 
+## Being spotted, and the clock
+
+Tiles a guard can see are washed **red** — any guard, whatever it is doing, so
+red always means one thing: do not end your turn here. How much trouble the guard
+itself is in is said by its own colour instead, calm blue on patrol through amber
+to red while hunting.
+
+**You are spotted if a turn *ends* with you in sight.** The check happens after
+the guards have moved, which is the whole tension: stepping somewhere safe is not
+enough, because a guard may turn a corner and be looking at you by the time the
+turn ends.
+
+Being seen is **not** the end of the run. It is counted, and `U` takes the move
+back, which makes the game a puzzle you work out rather than one you lose by
+surprise. The count is what a star rating will be built on.
+
+A level can set a turn limit with a `turns` line. Running the clock out ends the
+run; reaching the exit on the very last turn, or while a guard is watching, still
+counts as getting away. Both the sighting count and the failure are inside the
+`TurnCommand`, so undo takes them back along with everything else.
+
 ## Hints
 
 Press `H` for a trail of dots towards whatever you need next — the key, or the
@@ -147,6 +171,7 @@ A level file is the grid, then `---`, then one guard per line:
 ...
 #########################
 ---
+turns 250
 patroller 1,7 1,15 2,15 2,7
 hunter 13,10 13,19
 ```
@@ -160,12 +185,16 @@ hunter 13,10 13,19
 | `E` | exit |
 
 A guard line is a type then its waypoints as `row,col`; the first is where it
-starts, and the route loops. Every row must be the same width, and a level needs
-both a `@` and an `E`.
+starts, and the route loops. A `turns` line sets the turn limit, and without one
+the level is untimed. Every row must be the same width, and a level needs both a
+`@` and an `E`.
 
 `LevelIntegrityTest` uses A\* to assert the key and exit are actually reachable
 and every guard can walk its route. It is worth having: it caught level 1 being
-genuinely unfinishable, with the key sealed in a room with no door.
+genuinely unfinishable, with the key sealed in a room with no door. A companion
+test checks the turn limit leaves room to play — level 1's optimal route is 130
+turns, and the limit is 250, because a player who cannot see the map will not
+walk it optimally.
 
 ## Character artwork
 
@@ -204,7 +233,7 @@ hand, are in [docs/screens](docs/screens):
 - `00-character-select.png` — the roster
 - `01-start.png` — the opening position, sight hugging the corner
 - `02-explored.png` — part way in, with a trail of remembered tiles
-- `03-guard-spotted.png` — a patroller in view, with the tiles it is watching
+- `03-spotted.png` — caught in a hunter's sightline, with the clock running
 - `04-hint.png` — the suggested route, routing around guard sight
 - `05-dev-reveal.png` — the whole map with every guard, used to check the logic
 
@@ -220,7 +249,6 @@ java -cp "target/classes;target/test-classes" com.signallost.tools.ScreenshotToo
 
 | Step | What it adds |
 | --- | --- |
-| 4 | Being spotted, the red line-of-sight overlay, and the turn limit |
 | 5 | A sentinel guard with a rotating vision cone |
 | 6 | Multiple levels, star rating, title and level-complete screens |
 | 7 | SRS document and UML class and sequence diagrams |

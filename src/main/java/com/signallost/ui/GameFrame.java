@@ -87,7 +87,7 @@ public final class GameFrame extends JFrame {
     /** Builds a fresh game from the level file and swaps it into the screen. */
     private void loadLevel() {
         Level level = LevelLoader.loadFromResource(levelName);
-        state = new GameState(level.map(), level.guards(), SIGHT_RADIUS);
+        state = new GameState(level.map(), level.guards(), SIGHT_RADIUS, level.turnLimit());
         gamePanel = new GamePanel(state, critter);
         hud = new HudBar(state, critter, levelName);
 

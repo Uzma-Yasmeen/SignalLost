@@ -110,7 +110,12 @@ public final class GamePanel extends JPanel {
         drawPlayer(g);
 
         if (state.hasEscaped()) {
-            drawEscapedOverlay(g);
+            drawEndOverlay(g, "ESCAPED", Palette.EXIT_OPEN,
+                    state.turnsTaken() + " turns  ·  " + sightingsLine() + "  ·  R to replay");
+        } else if (state.hasFailed()) {
+            drawEndOverlay(g, "OUT OF TIME", Palette.DANGER,
+                    "the alarm went up at turn " + state.turnsTaken()
+                            + "  ·  U to take a move back, R to restart");
         }
         g.dispose();
     }
@@ -269,17 +274,47 @@ public final class GamePanel extends JPanel {
             if (!state.fog().isVisible(guard.position())) {
                 continue;
             }
-            Color tint = modeColour(guard.mode());
+            int strength = dangerStrength(guard.mode());
             for (Position watched : guard.watchedTiles(state.map())) {
-                if (!state.fog().isVisible(watched) || state.map().tileAt(watched) == TileType.WALL) {
+                if (!state.fog().isVisible(watched)
+                        || state.map().tileAt(watched) == TileType.WALL) {
                     continue;
                 }
                 Rectangle2D bounds = tileBounds(watched);
-                g.setColor(Palette.withAlpha(tint, watched.equals(guard.position()) ? 70 : 46));
+                g.setColor(Palette.withAlpha(Palette.DANGER, strength));
                 g.fill(new RoundRectangle2D.Double(
                         bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight(), 5, 5));
             }
         }
+        if (state.wasSpotted()) {
+            drawSpottedTile(g);
+        }
+    }
+
+    /**
+     * Watched tiles are red whoever is watching, because red has to mean one
+     * thing: do not end your turn here. How much trouble the guard itself is in
+     * is said by its own colour instead.
+     */
+    private static int dangerStrength(GuardMode mode) {
+        return switch (mode) {
+            case PATROL -> 46;
+            case ALERT -> 66;
+            case HUNT -> 92;
+        };
+    }
+
+    /** A hard red ring on the player's own tile the turn they are seen. */
+    private void drawSpottedTile(Graphics2D g) {
+        Rectangle2D bounds = tileBounds(state.player());
+        g.setColor(Palette.withAlpha(Palette.DANGER, 120));
+        g.fill(new RoundRectangle2D.Double(
+                bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight(), 5, 5));
+        g.setColor(Palette.DANGER);
+        g.setStroke(new BasicStroke(2.4f));
+        g.draw(new RoundRectangle2D.Double(
+                bounds.getX() + 1, bounds.getY() + 1,
+                bounds.getWidth() - 2, bounds.getHeight() - 2, 5, 5));
     }
 
     private void drawGuards(Graphics2D g) {
@@ -333,17 +368,25 @@ public final class GamePanel extends JPanel {
 
     // ---------------------------------------------------------------- extras
 
-    private void drawEscapedOverlay(Graphics2D g) {
-        g.setColor(Palette.withAlpha(Palette.BACKDROP, 205));
+    private void drawEndOverlay(Graphics2D g, String headline, Color colour, String detail) {
+        g.setColor(Palette.withAlpha(Palette.BACKDROP, 212));
         g.fillRect(0, 0, getWidth(), getHeight());
 
-        g.setColor(Palette.EXIT_OPEN);
+        g.setColor(colour);
         g.setFont(Fonts.display(38f));
-        centreText(g, "ESCAPED", getHeight() / 2 - 10);
+        centreText(g, headline, getHeight() / 2 - 10);
 
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(15f));
-        centreText(g, state.turnsTaken() + " turns  ·  press R to replay", getHeight() / 2 + 24);
+        centreText(g, detail, getHeight() / 2 + 24);
+    }
+
+    private String sightingsLine() {
+        int seen = state.sightings();
+        if (seen == 0) {
+            return "never seen";
+        }
+        return seen == 1 ? "seen once" : "seen " + seen + " times";
     }
 
     private void centreText(Graphics2D g, String text, int baselineY) {

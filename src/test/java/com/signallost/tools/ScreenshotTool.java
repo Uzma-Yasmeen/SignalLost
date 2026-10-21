@@ -68,9 +68,9 @@ public final class ScreenshotTool {
                 capture(outputDir.resolve("02-explored.png"), Critter.CAT, false,
                         state -> state.turnsTaken() >= 16);
 
-                // The first turn a guard is in sight.
-                capture(outputDir.resolve("03-guard-spotted.png"), Critter.FOX, false,
-                        ScreenshotTool::aGuardIsOnScreen);
+                // The first turn that ends inside a guard's line of sight.
+                capture(outputDir.resolve("03-spotted.png"), Critter.FOX, false,
+                        GameState::wasSpotted);
 
                 // The suggested route, dodging the guards' sight.
                 captureWithHint(outputDir.resolve("04-hint.png"), Critter.BUNNY,
@@ -84,12 +84,6 @@ public final class ScreenshotTool {
             }
         });
         System.out.println("Wrote screenshots to " + outputDir.toAbsolutePath());
-    }
-
-    /** True once any guard is standing on a tile the player can see. */
-    private static boolean aGuardIsOnScreen(GameState state) {
-        return state.guards().stream()
-                .anyMatch(guard -> state.fog().isVisible(guard.position()));
     }
 
     private static void captureSelect(Path target) throws IOException {
@@ -122,7 +116,8 @@ public final class ScreenshotTool {
         // marker into ordinary floor, so findFirst(START) would come back null.
         List<Direction> route = plannedRoute(level.map());
 
-        GameState state = new GameState(level.map(), level.guards(), SIGHT_RADIUS);
+        GameState state = new GameState(
+                level.map(), level.guards(), SIGHT_RADIUS, level.turnLimit());
         for (Direction move : route) {
             if (stopWhen.test(state)) {
                 break;
