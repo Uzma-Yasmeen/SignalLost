@@ -31,9 +31,16 @@ public final class Palette {
     public static final Color WALL_LIT = new Color(0x6E86B2);
     public static final Color WALL_LIT_TOP = new Color(0x90A6CE);
 
-    /** Tiles seen earlier and drawn from memory. */
-    public static final Color FLOOR_REMEMBERED = new Color(0x161D2B);
-    public static final Color WALL_REMEMBERED = new Color(0x252F43);
+    /**
+     * Tiles seen earlier and drawn from memory.
+     *
+     * <p>These two are deliberately far apart in brightness. Most of the screen
+     * is remembered rather than lit, so if a remembered wall and a remembered
+     * floor look similar the player cannot read the map they have already
+     * explored, which makes the fog feel like a bug rather than a mechanic.
+     */
+    public static final Color FLOOR_REMEMBERED = new Color(0x121828);
+    public static final Color WALL_REMEMBERED = new Color(0x3D4D70);
 
     /** Actors and objectives. */
     public static final Color PLAYER = new Color(0x5EEAD4);

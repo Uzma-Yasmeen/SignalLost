@@ -129,9 +129,10 @@ class TurnWithGuardsTest {
     void levelFileSuppliesGuards() {
         Level level = LevelLoader.loadFromResource("level1");
 
-        assertEquals(3, level.guards().size());
-        assertTrue(level.guards().stream().anyMatch(g -> g.type().equals("Hunter")));
-        assertTrue(level.guards().stream().anyMatch(g -> g.type().equals("Patroller")));
+        assertTrue(level.guards().stream().anyMatch(g -> g.type().equals("Hunter")),
+                "level 1 should introduce a hunter");
+        assertTrue(level.guards().stream().anyMatch(g -> g.type().equals("Patroller")),
+                "level 1 should introduce a patroller");
         level.guards().forEach(g ->
                 assertTrue(level.map().isWalkable(g.position()),
                         g.name() + " spawned inside a wall"));

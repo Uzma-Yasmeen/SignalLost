@@ -40,6 +40,16 @@ public final class GamePanel extends JPanel {
     private static final int GAP = 2;
     private static final int MARGIN = 14;
 
+    /**
+     * The narrowest the board is allowed to be.
+     *
+     * <p>A small level would otherwise make a window too narrow for the HUD and
+     * the control strip, which overlap and clip rather than shrink. The board is
+     * centred in whatever extra space this leaves, so a short level is
+     * letterboxed instead of squashing the furniture around it.
+     */
+    private static final int MIN_BOARD_WIDTH = 900;
+
     /** How fast sprite frames advance, when there are any. */
     private static final int ANIMATION_INTERVAL_MS = 150;
 
@@ -58,7 +68,7 @@ public final class GamePanel extends JPanel {
         this.critter = critter;
         GameMap map = state.map();
         setPreferredSize(new Dimension(
-                map.cols() * TILE + MARGIN * 2,
+                Math.max(map.cols() * TILE + MARGIN * 2, MIN_BOARD_WIDTH),
                 map.rows() * TILE + MARGIN * 2));
         setBackground(Palette.BACKDROP);
 
@@ -109,6 +119,9 @@ public final class GamePanel extends JPanel {
         drawGuards(g);
         drawPlayer(g);
 
+        if (state.wasSpotted() && !state.isFinished()) {
+            drawAlarmVignette(g);
+        }
         if (state.hasEscaped()) {
             drawEndOverlay(g, "ESCAPED", Palette.EXIT_OPEN,
                     state.turnsTaken() + " turns  ·  " + sightingsLine() + "  ·  R to replay");
@@ -172,7 +185,7 @@ public final class GamePanel extends JPanel {
         // walls a sense of height without any sprite work.
         Color top = lit
                 ? Palette.shade(Palette.WALL_LIT_TOP, brightness)
-                : Palette.shade(Palette.WALL_REMEMBERED, 1.35);
+                : Palette.shade(Palette.WALL_REMEMBERED, 1.28);
         g.setColor(top);
         g.fill(new RoundRectangle2D.Double(
                 bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight() * 0.28, 4, 4));
@@ -368,6 +381,37 @@ public final class GamePanel extends JPanel {
 
     // ---------------------------------------------------------------- extras
 
+    /**
+     * A red glow around the edge of the screen, and a line saying what happened.
+     *
+     * <p>A chip in the corner was not enough. Being seen is the single most
+     * important thing that can happen on a turn, and the player is looking at
+     * their character in the middle of the map, not at the HUD.
+     */
+    private void drawAlarmVignette(Graphics2D g) {
+        int depth = 26;
+        for (int i = 0; i < depth; i++) {
+            int alpha = (int) (95 * Math.pow(1.0 - (double) i / depth, 2));
+            if (alpha <= 0) {
+                continue;
+            }
+            g.setColor(Palette.withAlpha(Palette.DANGER, alpha));
+            g.setStroke(new BasicStroke(1f));
+            g.drawRect(i, i, getWidth() - 1 - i * 2, getHeight() - 1 - i * 2);
+        }
+
+        String message = "SPOTTED  ·  the alarm is up  ·  press U to take it back";
+        g.setFont(Fonts.bodyBold(13f));
+        FontMetrics metrics = g.getFontMetrics();
+        int width = metrics.stringWidth(message) + 28;
+        int x = (getWidth() - width) / 2;
+
+        g.setColor(Palette.withAlpha(Palette.DANGER, 220));
+        g.fill(new RoundRectangle2D.Double(x, 8, width, 26, 26, 26));
+        g.setColor(Color.WHITE);
+        g.drawString(message, x + 14, 8 + 18);
+    }
+
     private void drawEndOverlay(Graphics2D g, String headline, Color colour, String detail) {
         g.setColor(Palette.withAlpha(Palette.BACKDROP, 212));
         g.fillRect(0, 0, getWidth(), getHeight());
@@ -429,9 +473,15 @@ public final class GamePanel extends JPanel {
 
     private Rectangle2D tileBounds(Position position) {
         return new Rectangle2D.Double(
-                MARGIN + position.col() * TILE + GAP / 2.0,
+                boardLeft() + position.col() * TILE + GAP / 2.0,
                 MARGIN + position.row() * TILE + GAP / 2.0,
                 TILE - GAP,
                 TILE - GAP);
+    }
+
+    /** Where the grid starts, centred when the panel is wider than the level. */
+    private double boardLeft() {
+        double gridWidth = state.map().cols() * TILE;
+        return Math.max(MARGIN, (getWidth() - gridWidth) / 2.0);
     }
 }

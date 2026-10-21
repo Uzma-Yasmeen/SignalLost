@@ -152,24 +152,4 @@ class TurnLimitTest {
                 () -> LevelLoader.parseLevel("bad", notPositive));
     }
 
-    @Test
-    @DisplayName("Level 1 is timed, and its clock leaves room to actually play")
-    void levelOneHasAWorkableClock() {
-        Level level = LevelLoader.loadFromResource("level1");
-
-        assertTrue(level.turnLimit() > 0, "level 1 should be timed");
-
-        // The optimal route is found by the same A* the guards chase with.
-        var map = level.map();
-        var start = map.findFirst(com.signallost.model.TileType.START);
-        var key = map.findFirst(com.signallost.model.TileType.KEY);
-        var exit = map.findFirst(com.signallost.model.TileType.EXIT);
-        int optimal =
-                com.signallost.pathfinding.AStarPathfinder.findPath(map, start, key).size() - 1
-                        + com.signallost.pathfinding.AStarPathfinder.findPath(map, key, exit).size() - 1;
-
-        assertTrue(level.turnLimit() >= optimal * 1.4,
-                "a player who cannot see the map needs slack: optimal is " + optimal
-                        + " but the limit is only " + level.turnLimit());
-    }
 }

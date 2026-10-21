@@ -20,7 +20,7 @@ import java.util.Set;
  * {@link GuardState}, and something else decides whether to apply it — which is
  * how a guard's turn ends up on the undo stack with the player's.
  */
-public abstract class Guard {
+public abstract class Guard implements AlarmListener {
 
     private final String name;
     private final int sightRadius;
@@ -45,6 +45,15 @@ public abstract class Guard {
 
     /** A short word for what this guard is, shown in the HUD. */
     public abstract String type();
+
+    /**
+     * Guards ignore the alarm unless they can do something about it. A patroller
+     * raises the alarm by seeing you, but it has no answer to one.
+     */
+    @Override
+    public GuardState onAlarmRaised(GuardState current, Position sighting) {
+        return current;
+    }
 
     // ----------------------------------------------------------------- sight
 

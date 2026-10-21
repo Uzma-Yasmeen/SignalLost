@@ -29,6 +29,9 @@ final class TurnCommand implements Command {
     private boolean previousSpotted;
     private boolean previousFailed;
 
+    /** The alarm raised this turn, if the player was seen. */
+    private Command alarmAction;
+
     TurnCommand(GameState state, Command playerAction) {
         this.state = state;
         this.playerAction = playerAction;
@@ -63,6 +66,7 @@ final class TurnCommand implements Command {
      * last turn, or while standing in a guard's sight, has still escaped.
      */
     private void settleEndOfTurn() {
+        alarmAction = null;
         if (state.escaped) {
             state.spotted = false;
             return;
@@ -70,13 +74,19 @@ final class TurnCommand implements Command {
         state.spotted = state.isPlayerWatched();
         if (state.spotted) {
             state.sightings++;
+            // Being seen is reported, and the hunters answer it.
+            alarmAction = new AlarmCommand(state.guards(), state.player());
+            alarmAction.execute();
         }
         state.failed = state.hasTurnLimit() && state.turnsTaken >= state.turnLimit();
     }
 
     @Override
     public void undo() {
-        // Reverse order, so the game passes back through the exact states it came through.
+        // Everything unwinds in the order it was applied, backwards.
+        if (alarmAction != null) {
+            alarmAction.undo();
+        }
         for (int i = guardActions.size() - 1; i >= 0; i--) {
             guardActions.get(i).undo();
         }

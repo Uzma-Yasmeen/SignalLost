@@ -55,6 +55,21 @@ public final class Hunter extends Guard {
         return PatrolBehaviour.INSTANCE.takeTurn(this, current, map, player);
     }
 
+    /**
+     * Answers the alarm by heading for wherever the player was seen, from
+     * anywhere on the map.
+     *
+     * <p>A hunter already in sight of the player ignores it: it has better
+     * information than the report does.
+     */
+    @Override
+    public GuardState onAlarmRaised(GuardState current, Position sighting) {
+        if (current.mode() == GuardMode.HUNT || sighting == null) {
+            return current;
+        }
+        return current.searching(sighting, ALERT_PATIENCE);
+    }
+
     /** Searching continues until patience runs out or the spot is reached. */
     private boolean stillSearching(GuardState current) {
         return current.hasSomewhereToSearch()

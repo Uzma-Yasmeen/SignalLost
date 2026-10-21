@@ -66,7 +66,7 @@ public final class ScreenshotTool {
 
                 // Part way to the key, with a trail of remembered tiles.
                 capture(outputDir.resolve("02-explored.png"), Critter.CAT, false,
-                        state -> state.turnsTaken() >= 16);
+                        state -> state.turnsTaken() >= 9);
 
                 // The first turn that ends inside a guard's line of sight.
                 capture(outputDir.resolve("03-spotted.png"), Critter.FOX, false,
@@ -74,11 +74,11 @@ public final class ScreenshotTool {
 
                 // The suggested route, dodging the guards' sight.
                 captureWithHint(outputDir.resolve("04-hint.png"), Critter.BUNNY,
-                        state -> state.turnsTaken() >= 20);
+                        state -> state.turnsTaken() >= 11);
 
                 // Everything revealed, which is how the guard logic gets checked.
                 capture(outputDir.resolve("05-dev-reveal.png"), Critter.OWL, true,
-                        state -> state.turnsTaken() >= 24);
+                        state -> state.turnsTaken() >= 13);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

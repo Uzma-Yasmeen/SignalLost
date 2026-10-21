@@ -28,6 +28,12 @@ from the network the first time. The two lines above need nothing but the JDK
 once the project has been built, so they are the ones to reach for. You can also
 just run `com.signallost.Main` from your IDE.
 
+That starts level 1, a short level meant to teach the rules. For the bigger one:
+
+```bash
+java -cp target/classes com.signallost.Main level2
+```
+
 Pick a character, then:
 
 | Key | Does |
@@ -46,9 +52,9 @@ Tests:
 mvn -q test
 ```
 
-80 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
-behaviour, hints, spotting, the turn limit, level integrity and the window's
-select-to-level wiring.
+91 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+behaviour, the alarm, hints, spotting, the turn limit, level integrity and the
+window's select-to-level wiring.
 
 ## How the code is laid out
 
@@ -118,8 +124,8 @@ they saw, so the remembered map stays.
 
 | Type | Sight | Behaviour |
 | --- | --- | --- |
-| Patroller | 3 | Walks its route and never reacts, even with the player in plain view |
-| Hunter | 4 | Chases what it sees, searches where it last saw you, then gives up |
+| Patroller | 3 | Walks its route and never chases — but seeing you raises the alarm |
+| Hunter | 4 | Chases what it sees, answers alarms, searches, then gives up |
 
 The hunter is a small state machine:
 
@@ -150,9 +156,20 @@ the guards have moved, which is the whole tension: stepping somewhere safe is no
 enough, because a guard may turn a corner and be looking at you by the time the
 turn ends.
 
-Being seen is **not** the end of the run. It is counted, and `U` takes the move
-back, which makes the game a puzzle you work out rather than one you lose by
-surprise. The count is what a star rating will be built on.
+**The alarm goes up.** The guard that saw you does not chase alone: the sighting
+is broadcast to every guard on the map, and hunters answer it from wherever they
+are. That is the Observer pattern doing real work, and it is what gives a
+patroller teeth — it cannot chase anybody, but it can tell everyone who can, so
+the dumbest guard in the facility is the most dangerous thing to walk past.
+
+A hunter that can already see you ignores the report, because its own eyes are
+better information.
+
+Being seen is **not** the end of the run. It is counted, `U` takes the move back,
+and undo calls the alarm off too — the facility should not stay alerted about a
+sighting that, as far as the game is concerned, never happened. That makes this a
+puzzle you work out rather than one you lose by surprise. The count is what a
+star rating will be built on.
 
 A level can set a turn limit with a `turns` line. Running the clock out ends the
 run; reaching the exit on the very last turn, or while a guard is watching, still
@@ -170,6 +187,11 @@ It is deliberately omniscient, accounting for guards you cannot see, and it only
 shows the next seven steps. It points, it does not solve.
 
 ## Levels
+
+**Level 1** is short and teaches the rules: you meet a patroller within a few
+turns and a hunter soon after. **Level 2** is the large facility, about 130 turns
+at its fastest. Level 1 was built after playing level 2 first and finding it had
+no guard anywhere near the start, so nothing happened for the first fifty turns.
 
 A level file is the grid, then `---`, then one guard per line:
 
@@ -197,12 +219,14 @@ starts, and the route loops. A `turns` line sets the turn limit, and without one
 the level is untimed. Every row must be the same width, and a level needs both a
 `@` and an `E`.
 
-`LevelIntegrityTest` uses A\* to assert the key and exit are actually reachable
-and every guard can walk its route. It is worth having: it caught level 1 being
-genuinely unfinishable, with the key sealed in a room with no door. A companion
-test checks the turn limit leaves room to play — level 1's optimal route is 130
-turns, and the limit is 250, because a player who cannot see the map will not
-walk it optimally.
+`LevelIntegrityTest` runs **every** shipped level through A\*: the key must be
+reachable from the start, the exit from the key, every guard must be able to walk
+its route, and the turn limit must leave real slack over the optimal route,
+because a player who cannot see the map will not walk it optimally. A new level
+file is validated the moment it is added rather than when a player hits the wall.
+
+It is worth having. It caught level 2 being genuinely unfinishable, with the key
+sealed in a room that had no door.
 
 ## Character artwork
 
@@ -241,7 +265,7 @@ hand, are in [docs/screens](docs/screens):
 - `00-character-select.png` — the roster
 - `01-start.png` — the opening position, sight hugging the corner
 - `02-explored.png` — part way in, with a trail of remembered tiles
-- `03-spotted.png` — caught in a hunter's sightline, with the clock running
+- `03-spotted.png` — caught, with the alarm up and a hunter answering it
 - `04-hint.png` — the suggested route, routing around guard sight
 - `05-dev-reveal.png` — the whole map with every guard, used to check the logic
 
