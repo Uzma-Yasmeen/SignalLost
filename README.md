@@ -16,11 +16,19 @@ Built step by step.
 
 ## Running it
 
+On Windows, double-click `run.bat`, or from a terminal:
+
 ```bash
-mvn -q exec:java
+mvn -q compile
+java -cp target/classes com.signallost.Main
 ```
 
-Or run `com.signallost.Main` from your IDE. Pick a character, then:
+`mvn -q exec:java` also works, but it needs the exec plugin, which Maven fetches
+from the network the first time. The two lines above need nothing but the JDK
+once the project has been built, so they are the ones to reach for. You can also
+just run `com.signallost.Main` from your IDE.
+
+Pick a character, then:
 
 | Key | Does |
 | --- | --- |
