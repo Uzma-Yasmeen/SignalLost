@@ -118,14 +118,15 @@ class CaptureTest {
     @Test
     @DisplayName("Escaping beats being caught on the same turn")
     void escapingWinsOverCapture() {
-        // The hunter is right on top of the exit, and will step onto the player
-        // the moment they reach it. Getting out should still win.
+        // A patroller walks onto the exit on the very turn the player reaches
+        // it. Getting out should still win the tie.
         GameMap map = LevelLoader.parse(List.of(
-                "######",
-                "#@KE.#",
-                "######"));
-        Hunter hunter = new Hunter("H", new Position(1, 4), List.of(new Position(1, 4)));
-        GameState state = new GameState(map, List.of(hunter), 4);
+                "#######",
+                "#@KE..#",
+                "#######"));
+        Patroller patroller = new Patroller("P", new Position(1, 5),
+                List.of(new Position(1, 5), new Position(1, 3)));
+        GameState state = new GameState(map, List.of(patroller), 4);
 
         state.movePlayer(Direction.RIGHT);
         state.movePlayer(Direction.RIGHT);

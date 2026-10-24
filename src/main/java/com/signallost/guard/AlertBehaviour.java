@@ -37,6 +37,6 @@ public final class AlertBehaviour implements GuardBehaviour {
                 .orElse(current.position());
 
         return new GuardState(step, GuardMode.ALERT, current.routeIndex(), target,
-                Math.max(0, current.alertTurnsLeft() - 1));
+                Math.max(0, current.alertTurnsLeft() - 1), false);
     }
 }

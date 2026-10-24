@@ -42,6 +42,6 @@ public final class PatrolBehaviour implements GuardBehaviour {
         Position step = AStarPathfinder.nextStepTowards(map, current.position(), target)
                 .orElse(current.position());
 
-        return new GuardState(step, GuardMode.PATROL, waypoint, current.lastSeenPlayer(), 0);
+        return new GuardState(step, GuardMode.PATROL, waypoint, current.lastSeenPlayer(), 0, false);
     }
 }

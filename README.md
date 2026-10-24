@@ -52,7 +52,7 @@ Tests:
 mvn -q test
 ```
 
-103 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+107 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, keys, hints, spotting, the turn limit, level
 integrity and the window's select-to-level wiring.
 
@@ -125,7 +125,33 @@ they saw, so the remembered map stays.
 | Type | Sight | Behaviour |
 | --- | --- | --- |
 | Patroller | 3 | Walks its route and never chases — but seeing you raises the alarm |
-| Hunter | 4 | Chases what it sees, answers alarms, searches, then gives up |
+| Hunter | 4 | **Surges** after what it sees, answers alarms, searches, then gives up |
+
+### Speed, and why you cannot run
+
+A hunting guard **surges: two tiles, then one, then two again.** Getting that
+number right took three tries, and the wrong answers were instructive.
+
+At a flat **one tile** a turn it moved at exactly the player's speed, so once it
+fell in behind you the gap froze forever. It could never close and you could
+never shake it. It escorted you to the exit, which quietly made being seen cost
+nothing at all.
+
+At a flat **two** it gained a whole tile every turn — and measuring the levels
+showed that was impossible to survive. In level 1 there are tiles where the
+nearest cover is five steps away but capture would arrive in four. Being seen
+there was death regardless of how well you played.
+
+Alternating gains **half a tile a turn**. Running still fails, because the gap
+does close, but spotted at the edge of a hunter's sight you have roughly eight
+turns to get out of view. `LevelFairnessTest` checks every tile of every
+hunter's patrol against that budget, so a level cannot ship with a corner that
+cannot be escaped. The speed was set to fit the measurement rather than the
+other way round, and the test caught a dead-end pocket in level 2 that had no
+exit except along the hunter's own route.
+
+**So the way out is breaking line of sight, not speed.** That is what turns the
+fog from scenery into the thing that saves you.
 
 The hunter is a small state machine:
 

@@ -20,30 +20,36 @@ import com.signallost.model.Position;
  * @param routeIndex      which patrol waypoint it is heading for
  * @param lastSeenPlayer  where the player was last spotted, or null
  * @param alertTurnsLeft  how much longer it will keep searching before giving up
+ * @param surgedLastTurn  whether a hunting guard sprinted on its last turn, so
+ *                        that it walks on this one
  */
 public record GuardState(
         Position position,
         GuardMode mode,
         int routeIndex,
         Position lastSeenPlayer,
-        int alertTurnsLeft) {
+        int alertTurnsLeft,
+        boolean surgedLastTurn) {
 
     /** The state a guard starts a level in. */
     public static GuardState startingAt(Position spawn) {
-        return new GuardState(spawn, GuardMode.PATROL, 0, null, 0);
+        return new GuardState(spawn, GuardMode.PATROL, 0, null, 0, false);
     }
 
     public GuardState at(Position newPosition) {
-        return new GuardState(newPosition, mode, routeIndex, lastSeenPlayer, alertTurnsLeft);
+        return new GuardState(newPosition, mode, routeIndex, lastSeenPlayer, alertTurnsLeft,
+                surgedLastTurn);
     }
 
     public GuardState withMode(GuardMode newMode) {
-        return new GuardState(position, newMode, routeIndex, lastSeenPlayer, alertTurnsLeft);
+        return new GuardState(position, newMode, routeIndex, lastSeenPlayer, alertTurnsLeft,
+                surgedLastTurn);
     }
 
     /** Switches to searching for the player, with a fresh patience counter. */
     public GuardState searching(Position target, int patience) {
-        return new GuardState(position, GuardMode.ALERT, routeIndex, target, patience);
+        // Searching is a walk, so any sprint is over.
+        return new GuardState(position, GuardMode.ALERT, routeIndex, target, patience, false);
     }
 
     public boolean hasSomewhereToSearch() {

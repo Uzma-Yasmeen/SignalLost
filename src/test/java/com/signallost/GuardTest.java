@@ -96,7 +96,7 @@ class GuardTest {
     // --------------------------------------------------------------- hunter
 
     @Test
-    @DisplayName("A hunter that sees the player closes in on them")
+    @DisplayName("A hunter that sees the player covers two tiles a turn")
     void hunterChasesWhatItSees() {
         GameMap map = corridor();
         Hunter guard = new Hunter("H", new Position(1, 1), List.of(new Position(1, 1)));
@@ -105,7 +105,45 @@ class GuardTest {
         step(guard, map, player);
 
         assertEquals(GuardMode.HUNT, guard.mode());
-        assertEquals(new Position(1, 2), guard.position(), "one step closer");
+        assertEquals(new Position(1, 3), guard.position(),
+                "a hunting guard is faster than the player");
+    }
+
+    @Test
+    @DisplayName("You cannot outrun a hunter: running in a straight line gets you caught")
+    void runningAwayDoesNotWork() {
+        GameMap map = LevelLoader.parse(List.of(
+                "###############",
+                "#.............#",
+                "###############"));
+        Hunter guard = new Hunter("H", new Position(1, 1), List.of(new Position(1, 1)));
+
+        // The player flees east, one tile a turn, starting three tiles ahead.
+        Position player = new Position(1, 4);
+        for (int turn = 0; turn < 6 && !guard.position().equals(player); turn++) {
+            player = new Position(1, Math.min(13, player.col() + 1));
+            step(guard, map, player);
+        }
+
+        assertEquals(player, guard.position(), "it should have run the player down");
+    }
+
+    @Test
+    @DisplayName("Breaking line of sight is the way out: a searching guard slows to walking pace")
+    void losingSightSlowsTheHunter() {
+        GameMap map = corridor();
+        Hunter guard = new Hunter("H", new Position(1, 1), List.of(new Position(1, 1)));
+
+        step(guard, map, new Position(1, 5));
+        assertEquals(GuardMode.HUNT, guard.mode());
+        Position whileHunting = guard.position();
+
+        // Out of sight. It drops to searching, and searching is one tile a turn.
+        step(guard, map, FAR_AWAY);
+
+        assertEquals(GuardMode.ALERT, guard.mode());
+        assertEquals(1, guard.position().manhattanDistanceTo(whileHunting),
+                "searching covers one tile, not two");
     }
 
     @Test
@@ -130,16 +168,16 @@ class GuardTest {
         GameMap map = corridor();
         Hunter guard = new Hunter("H", new Position(1, 1), List.of(new Position(1, 1)));
 
-        // Seen at (1,4): the hunter locks on and remembers the tile.
-        step(guard, map, new Position(1, 4));
+        // Seen at (1,5): the hunter locks on and remembers the tile.
+        step(guard, map, new Position(1, 5));
         assertEquals(GuardMode.HUNT, guard.mode());
 
         // The player vanishes off the map. The hunter should search, not give up.
         step(guard, map, FAR_AWAY);
 
         assertEquals(GuardMode.ALERT, guard.mode());
-        assertEquals(new Position(1, 4), guard.state().lastSeenPlayer());
-        assertEquals(new Position(1, 3), guard.position(), "still heading for the last sighting");
+        assertEquals(new Position(1, 5), guard.state().lastSeenPlayer());
+        assertEquals(new Position(1, 4), guard.position(), "still heading for the last sighting");
     }
 
     @Test
