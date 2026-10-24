@@ -81,7 +81,39 @@ public final class ObjectSprite {
             "................",
     };
 
+    /** An earned star on the escape screen. */
+    private static final String[] STAR = {
+            "................",
+            ".......BB.......",
+            "......BBBB......",
+            "......BBBB......",
+            "..BBBBBBBBBBBB..",
+            "..BBBBBBBBBBBB..",
+            "...BBBBBBBBBB...",
+            "....BBBBBBBB....",
+            "....BBBBBBBB....",
+            "...BBBBBBBBBB...",
+            "..BBBB....BBBB..",
+            "..BBB......BBB..",
+            "..BB........BB..",
+            "................",
+            "................",
+            "................",
+    };
+
     private ObjectSprite() {
+    }
+
+    /**
+     * One star of a rating.
+     *
+     * <p>An unearned star is drawn in the same shape, dimmed rather than
+     * omitted, so the player can see at a glance how many they missed.
+     */
+    public static void paintStar(Graphics2D g, double cx, double cy, double size,
+                                 boolean earned) {
+        Color body = earned ? Palette.KEY : Palette.TEXT_DIM;
+        PixelSprite.paint(g, STAR, palette(body, earned ? 1.0 : 0.35), cx, cy, size);
     }
 
     public static void paintKey(Graphics2D g, double cx, double cy, double size, double dim) {

@@ -72,6 +72,9 @@ public final class ScreenshotTool {
                 capture(outputDir.resolve("03-spotted.png"), Critter.FOX, false,
                         GameState::wasSpotted);
 
+                // A clean escape, to show the rating.
+                captureEscape(outputDir.resolve("07-escaped.png"), Critter.BUNNY);
+
                 // Run straight at the hunter until it catches up.
                 capture(outputDir.resolve("06-caught.png"), Critter.PANDA, false,
                         GameState::isCaught);
@@ -88,6 +91,31 @@ public final class ScreenshotTool {
             }
         });
         System.out.println("Wrote screenshots to " + outputDir.toAbsolutePath());
+    }
+
+    /**
+     * Walks the level out with the guards left at home, so the escape screen
+     * can be seen. A scripted player cannot reliably beat the real thing.
+     */
+    private static void captureEscape(Path target, Critter critter) throws IOException {
+        Level level = LevelLoader.loadFromResource("level1");
+        GameState state = new GameState(level.map(), List.of(), SIGHT_RADIUS, level.turnLimit());
+
+        // Follow the game's own suggested route, which knows there is more
+        // than one key to collect before the exit will open.
+        while (!state.hasEscaped() && state.turnsTaken() < level.turnLimit()) {
+            List<Position> hint = state.hintRoute(1);
+            if (hint.isEmpty() || !state.movePlayer(between(state.player(), hint.get(0)))) {
+                break;
+            }
+        }
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(Palette.BACKDROP);
+        root.add(new HudBar(state, critter, "level1"), BorderLayout.NORTH);
+        root.add(new GamePanel(state, critter), BorderLayout.CENTER);
+        root.add(new FooterBar(), BorderLayout.SOUTH);
+        write(target, root);
     }
 
     private static void captureSelect(Path target) throws IOException {
@@ -144,15 +172,30 @@ public final class ScreenshotTool {
         write(target, root);
     }
 
-    /** Start to key to exit, as a list of moves, found with A*. */
+    /** Start, then every key nearest-first, then the exit, as a list of moves. */
     private static List<Direction> plannedRoute(GameMap map) {
-        Position start = map.findFirst(TileType.START);
-        Position key = map.findFirst(TileType.KEY);
-        Position exit = map.findFirst(TileType.EXIT);
-
+        Position at = map.findFirst(TileType.START);
+        List<Position> remaining = new ArrayList<>(map.findAll(TileType.KEY));
         List<Direction> moves = new ArrayList<>();
-        moves.addAll(asDirections(AStarPathfinder.findPath(map, start, key)));
-        moves.addAll(asDirections(AStarPathfinder.findPath(map, key, exit)));
+
+        while (!remaining.isEmpty()) {
+            Position nearest = null;
+            int best = Integer.MAX_VALUE;
+            for (Position key : remaining) {
+                int steps = AStarPathfinder.findPath(map, at, key).size();
+                if (steps > 0 && steps < best) {
+                    best = steps;
+                    nearest = key;
+                }
+            }
+            if (nearest == null) {
+                break;
+            }
+            moves.addAll(asDirections(AStarPathfinder.findPath(map, at, nearest)));
+            at = nearest;
+            remaining.remove(nearest);
+        }
+        moves.addAll(asDirections(AStarPathfinder.findPath(map, at, map.findFirst(TileType.EXIT))));
         return moves;
     }
 

@@ -52,9 +52,9 @@ Tests:
 mvn -q test
 ```
 
-117 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
-behaviour, the alarm, capture, keys, hints, spotting, the turn limit, level
-integrity and the window's select-to-level wiring.
+126 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
+limit, level integrity and the window's select-to-level wiring.
 
 ## How the code is laid out
 
@@ -224,6 +224,31 @@ run; reaching the exit on the very last turn, or while a guard is watching, stil
 counts as getting away. Both the sighting count and the failure are inside the
 `TurnCommand`, so undo takes them back along with everything else.
 
+## Score
+
+Escaping earns one star. Two more are on offer:
+
+| Star | Earned by |
+| --- | --- |
+| ★ | getting out at all |
+| ★ | getting out inside **par** |
+| ★ | getting out **never having been seen** |
+
+Two separate bars rather than one blended number, so a player who got two stars
+can read which one they missed and go back for it. That is the whole point of
+the sightings counter: it used to be a number that rose and never paid off,
+which teaches a player to ignore it.
+
+**Par is worked out from the level itself**, not typed into the level file:
+`RouteMetrics.shortestClearRoute` walks start to every key to exit ignoring
+guards, and par is that plus 40%. It cannot drift out of date when the walls
+move, and the same helper feeds `LevelIntegrityTest`, so the test and the rating
+can never disagree about what a level costs. Level 1's clear route is 36 turns,
+so par is 51 against a limit of 150.
+
+This is also the answer to "why replay a level you have beaten". The first run
+is about getting out. The second is about getting out clean.
+
 ## Hints
 
 Press `H` for a trail of dots towards whatever you need next — the key, or the
@@ -333,7 +358,8 @@ hand, are in [docs/screens](docs/screens):
 - `03-spotted.png` — caught, with the alarm up and a hunter answering it
 - `04-hint.png` — the suggested route, routing around guard sight
 - `05-dev-reveal.png` — the whole map with every guard, used to check the logic
-- `06-caught.png` — a guard reached the player, and the run is over
+- `06-caught.png` — a hunter reached the player; a life gone, two left
+- `07-escaped.png` — the escape screen, with the rating
 
 The walks are driven by A\*, not hard-coded key presses, so they keep working
 when the level is redrawn. Regenerate with:
@@ -348,7 +374,7 @@ java -cp "target/classes;target/test-classes" com.signallost.tools.ScreenshotToo
 | Step | What it adds |
 | --- | --- |
 | 5 | A sentinel guard with a rotating vision cone |
-| 6 | Multiple levels, star rating, title and level-complete screens |
+| 6 | More levels, and a title screen |
 | 7 | SRS document and UML class and sequence diagrams |
 | 8 | Phase 2: a Spring Boot and PostgreSQL leaderboard with a daily level |
 

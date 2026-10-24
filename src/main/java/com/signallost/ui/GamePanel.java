@@ -5,6 +5,7 @@ import com.signallost.guard.GuardMode;
 import com.signallost.model.GameMap;
 import com.signallost.model.GameState;
 import com.signallost.model.Position;
+import com.signallost.model.Score;
 import com.signallost.model.TileType;
 import com.signallost.vision.TileVisibility;
 
@@ -363,8 +364,7 @@ public final class GamePanel extends JPanel {
             drawEndOverlay(g, "GAME OVER", Palette.DANGER,
                     "out of lives  ·  " + sightingsLine() + "  ·  R to start again");
         } else if (state.hasEscaped()) {
-            drawEndOverlay(g, "ESCAPED", Palette.EXIT_OPEN,
-                    state.turnsTaken() + " turns  ·  " + sightingsLine() + "  ·  R to replay");
+            drawEscapeOverlay(g);
         } else if (state.isAttemptOver()) {
             int attemptsLeft = state.livesLeft() - 1;
             String detail = attemptsLeft > 0
@@ -405,6 +405,38 @@ public final class GamePanel extends JPanel {
         g.fill(new RoundRectangle2D.Double(x, 8, width, 26, 26, 26));
         g.setColor(Color.WHITE);
         g.drawString(message, x + 14, 8 + 18);
+    }
+
+    /**
+     * The escape screen: the headline, the rating, and what earned it.
+     *
+     * <p>Naming the two bars rather than only showing a number is the point.
+     * A player who got two stars should be able to read why, because that is
+     * what sends them back in to get the third.
+     */
+    private void drawEscapeOverlay(Graphics2D g) {
+        Score score = state.score();
+
+        g.setColor(Palette.withAlpha(Palette.BACKDROP, 212));
+        g.fillRect(0, 0, getWidth(), getHeight());
+
+        g.setColor(Palette.EXIT_OPEN);
+        g.setFont(Fonts.display(38f));
+        centreText(g, "ESCAPED", getHeight() / 2 - 46);
+
+        double starSize = 54;
+        double gap = 14;
+        double totalWidth = Score.MAX_STARS * starSize + (Score.MAX_STARS - 1) * gap;
+        double x = (getWidth() - totalWidth) / 2 + starSize / 2;
+        for (int i = 0; i < Score.MAX_STARS; i++) {
+            ObjectSprite.paintStar(g, x + i * (starSize + gap), getHeight() / 2.0 + 6,
+                    starSize, i < score.stars());
+        }
+
+        g.setColor(Palette.TEXT_DIM);
+        g.setFont(Fonts.body(15f));
+        centreText(g, score.summary(), getHeight() / 2 + 60);
+        centreText(g, "R to replay  ·  C to change character", getHeight() / 2 + 84);
     }
 
     private void drawEndOverlay(Graphics2D g, String headline, Color colour, String detail) {

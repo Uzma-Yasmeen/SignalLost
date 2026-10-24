@@ -4,6 +4,7 @@ import com.signallost.guard.Guard;
 import com.signallost.guard.GuardMode;
 import com.signallost.guard.GuardState;
 import com.signallost.pathfinding.AStarPathfinder;
+import com.signallost.pathfinding.RouteMetrics;
 import com.signallost.vision.FogOfWar;
 
 import java.util.ArrayDeque;
@@ -52,6 +53,15 @@ public final class GameState {
     /** Attempts at a level before the run is over. */
     public static final int STARTING_LIVES = 3;
 
+    /**
+     * How much longer than the straight-line route still counts as brisk.
+     *
+     * <p>Par is worked out from the level's own geometry rather than typed into
+     * the level file, so it cannot drift out of date when the walls move. The
+     * slack is because the clear route ignores guards, and a player cannot.
+     */
+    private static final double PAR_SLACK = 1.4;
+
     private final GameMap map;
     private final FogOfWar fog;
     private final Position exit;
@@ -61,6 +71,7 @@ public final class GameState {
     private final Position startTile;
     private final List<Position> keySpawns;
     private final List<GuardState> guardSpawns;
+    private final int parTurns;
     private final Deque<Command> history = new ArrayDeque<>();
 
     // Written only by commands in this package; read by everyone through getters.
@@ -90,6 +101,12 @@ public final class GameState {
         this.turnLimit = Math.max(NO_TURN_LIMIT, turnLimit);
         this.keysRequired = map.count(TileType.KEY);
         this.keySpawns = map.findAll(TileType.KEY);
+        // Worked out before the start marker is paved over, since the route
+        // begins there.
+        int clearRoute = RouteMetrics.shortestClearRoute(map);
+        this.parTurns = clearRoute == RouteMetrics.UNREACHABLE
+                ? 0
+                : (int) Math.ceil(clearRoute * PAR_SLACK);
         this.guardSpawns = this.guards.stream().map(Guard::state).toList();
         Position start = map.findFirst(TileType.START);
         if (start == null) {
@@ -371,6 +388,19 @@ public final class GameState {
     /** The whole run is over: either out, or out of lives. */
     public boolean isFinished() {
         return escaped || runOver;
+    }
+
+    /** The turn count this level considers a clean route; 0 when unknowable. */
+    public int parTurns() {
+        return parTurns;
+    }
+
+    /**
+     * How the run is rated. Meaningful once the player has escaped; before
+     * that it reports what they would get if they walked out this instant.
+     */
+    public Score score() {
+        return Score.of(escaped, turnsTaken, parTurns, sightings);
     }
 
     public int livesLeft() {

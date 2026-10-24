@@ -6,6 +6,7 @@ import com.signallost.model.GameMap;
 import com.signallost.model.Position;
 import com.signallost.model.TileType;
 import com.signallost.pathfinding.AStarPathfinder;
+import com.signallost.pathfinding.RouteMetrics;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -96,39 +97,11 @@ class LevelIntegrityTest {
     }
 
     /**
-     * Roughly the shortest run: collect every key nearest-first, then leave.
-     *
-     * <p>Picking the nearest key each time is a greedy tour rather than a true
-     * optimum, which is fine here. It can only overestimate, and the check it
-     * feeds asks whether the clock has slack, so erring long is the safe way to
-     * be wrong.
+     * Roughly the shortest run, from the same helper the game derives par with,
+     * so this test and the rating can never disagree about what a level costs.
      */
     static int optimalRoute(Level level) {
-        GameMap map = level.map();
-        Position at = map.findFirst(TileType.START);
-        List<Position> remaining = new ArrayList<>(map.findAll(TileType.KEY));
-        int steps = 0;
-
-        while (!remaining.isEmpty()) {
-            Position nearest = null;
-            int best = Integer.MAX_VALUE;
-            for (Position key : remaining) {
-                int distance = AStarPathfinder.findPath(map, at, key).size() - 1;
-                if (distance >= 0 && distance < best) {
-                    best = distance;
-                    nearest = key;
-                }
-            }
-            // Unreachable keys are the completability test's job to report;
-            // bailing here keeps this from dying with a null pointer instead.
-            if (nearest == null) {
-                return Integer.MAX_VALUE;
-            }
-            steps += best;
-            at = nearest;
-            remaining.remove(nearest);
-        }
-        return steps + AStarPathfinder.findPath(map, at, map.findFirst(TileType.EXIT)).size() - 1;
+        return RouteMetrics.shortestClearRoute(level.map());
     }
 
     static String[] shippedLevels() {
