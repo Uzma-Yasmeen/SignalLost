@@ -21,7 +21,8 @@ public final class FooterBar extends JPanel {
             {"H", "hint"},
             {"M", "reveal map"},
             {"R", "restart"},
-            {"C", "change character"},
+            {"C", "character"},
+            {"ESC", "levels"},
     };
 
     public FooterBar() {

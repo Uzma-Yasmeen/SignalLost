@@ -44,6 +44,7 @@ Pick a character, then:
 | `H` | show or hide the suggested route |
 | `M` | developer toggle: reveal the whole map |
 | `R` | restart the level |
+| `Esc` | back to the level select |
 | `C` | go back to the character select |
 
 Tests:
@@ -52,7 +53,7 @@ Tests:
 mvn -q test
 ```
 
-140 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+153 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
 
@@ -322,6 +323,10 @@ level2 1
 
 ## Levels
 
+Four levels ship: **1** a small lattice, **3** a wider one, **4** a tall one,
+and **2** the large facility, unlocked last because it is the hardest. They are
+ordered by the stars they cost to open rather than by their file names.
+
 **Level 1** is a lattice: corridors with pillars, so there is always a way
 round. That matters more than it sounds — the previous level 1 had a single
 one-tile chokepoint and its only route south ran the length of the hunter's
@@ -452,6 +457,25 @@ It has earned its keep three times, and twice at my own expense:
 
 The lesson worth keeping: a test suite that passes tells you the rules work. It
 does not tell you the game can be won.
+
+## A bug worth keeping in the notes
+
+Undo and restart silently stopped working, and no test caught it.
+
+The window bound `U`, `R`, `H`, `M`, `C` and WASD to game actions, and then a
+later loop bound every letter A-Z to "type this into the name box". The second
+pass replaced the first in Swing's `InputMap`. The game ran, nothing threw, and
+the keys did nothing.
+
+The window test did not catch it because it fired actions **by name** out of the
+`ActionMap`, which never goes through the `InputMap` where the collision lived.
+A test that drives a thing through a different door than the user does can pass
+while the user's door is bricked up.
+
+Two things changed. `KeyBindingTest` now looks each key up in the `InputMap` and
+runs whatever it finds, exactly as a keypress does. And `bindKey` throws if a key
+is already bound, so the next version of this mistake fails loudly at startup
+instead of quietly at the keyboard.
 
 ## Build notes
 

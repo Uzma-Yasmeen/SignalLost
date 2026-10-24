@@ -18,22 +18,21 @@ import javax.swing.KeyStroke;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.event.ActionEvent;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The game window, and the route between its screens:
  *
  * <pre>
- *   name  ->  level select  ->  character select  ->  the level
+ *   name  -&gt;  level select  -&gt;  character select  -&gt;  the level
  *               ^                                        |
- *               +-------------- escape, or R ------------+
+ *               +--------------- escape, or Esc ---------+
  * </pre>
  *
- * <p>Input is wired through Swing's {@code InputMap}/{@code ActionMap} rather
- * than a {@code KeyListener}, so keys work whichever component holds focus, and
- * each binding is a named action rather than a branch in a switch. Every action
- * asks which screen is showing, which is how the arrow keys can browse levels,
- * browse characters and walk the player.
+ * <p>Input goes through Swing's {@code InputMap}/{@code ActionMap} rather than a
+ * {@code KeyListener}, so keys work whichever component holds focus.
  */
 public final class GameFrame extends JFrame {
 
@@ -64,6 +63,9 @@ public final class GameFrame extends JFrame {
 
     /** Which screen is showing, since every key binding needs to know. */
     private String screen = NAME_CARD;
+
+    /** Letters already given a job, so the catch-all pass skips them. */
+    private final Set<Character> boundLetters = new HashSet<>();
 
     public GameFrame(String startingLevel) {
         this(startingLevel, ProgressStore.inUserHome());
@@ -168,85 +170,156 @@ public final class GameFrame extends JFrame {
     /**
      * Files the finished run before leaving the level.
      *
-     * <p>Saving on the way out rather than on every turn means one write per
-     * run, and nothing is lost that the player would notice.
+     * <p>Saving on the way out rather than every turn means one write per run,
+     * and nothing is lost that the player would notice.
      */
     private void recordAndReturnToLevels() {
-        if (state != null && state.hasEscaped() && profile != null) {
-            if (profile.record(currentLevel.name(), state.score())) {
-                store.save(profile);
-            }
+        if (state != null && state.hasEscaped() && profile != null
+                && profile.record(currentLevel.name(), state.score())) {
+            store.save(profile);
         }
         showLevelSelect();
     }
 
     // ----------------------------------------------------------------- input
 
-    private void bindKeys() {
-        bindDirection("UP", "W", Direction.UP, 0, -1);
-        bindDirection("DOWN", "S", Direction.DOWN, 0, 1);
-        bindDirection("LEFT", "A", Direction.LEFT, -1, 0);
-        bindDirection("RIGHT", "D", Direction.RIGHT, 1, 0);
+    /*
+     * Every key is bound exactly once.
+     *
+     * An earlier version bound U, R, H, M, C and WASD to game actions and then
+     * looped over A-Z binding each letter to "type this into the name box".
+     * The second pass silently replaced the first in the InputMap, so undo and
+     * restart did nothing at all. One binding per key, deciding by screen
+     * inside the action, is the only arrangement that cannot drift like that,
+     * and bindKey now refuses a second binding rather than overwriting one.
+     */
 
-        bind("SPACE", "space", this::onSpace);
-        bind("ENTER", "confirm", this::onEnter);
-        bind("BACK_SPACE", "backspace", () -> {
-            if (screen.equals(NAME_CARD)) {
+    private void bindKeys() {
+        bindKey("UP", "up", () -> steer(0, -1, Direction.UP));
+        bindKey("DOWN", "down", () -> steer(0, 1, Direction.DOWN));
+        bindKey("LEFT", "left", () -> steer(-1, 0, Direction.LEFT));
+        bindKey("RIGHT", "right", () -> steer(1, 0, Direction.RIGHT));
+
+        bindKey("SPACE", "space", this::onSpace);
+        bindKey("ENTER", "confirm", this::onEnter);
+        bindKey("BACK_SPACE", "backspace", () -> {
+            if (onNameScreen()) {
                 namePanel.backspace();
             }
         });
-        bind("ESCAPE", "back", () -> {
-            if (screen.equals(SELECT_CARD)) {
-                showLevelSelect();
-            } else if (screen.equals(GAME_CARD)) {
-                recordAndReturnToLevels();
-            }
-        });
-
-        bind("PERIOD", "wait", () -> {
+        bindKey("ESCAPE", "back", this::onEscape);
+        bindKey("PERIOD", "wait", () -> {
             if (inGame() && state.movePlayer(Direction.WAIT)) {
                 refresh();
             }
         });
-        bind("U", "undo", () -> {
+
+        bindLetter('W', () -> steer(0, -1, Direction.UP));
+        bindLetter('A', () -> steer(-1, 0, Direction.LEFT));
+        bindLetter('S', () -> steer(0, 1, Direction.DOWN));
+        bindLetter('D', () -> steer(1, 0, Direction.RIGHT));
+
+        bindLetter('U', () -> {
             if (inGame() && state.undoLastMove()) {
                 refresh();
             }
         });
-        bind("H", "toggleHint", () -> {
+        bindLetter('H', () -> {
             if (inGame()) {
                 gamePanel.toggleHint();
                 hud.repaint();
             }
         });
-        bind("M", "toggleReveal", () -> {
+        bindLetter('M', () -> {
             if (inGame()) {
                 state.fog().toggleRevealAll();
                 refresh();
             }
         });
-        bind("R", "restart", () -> {
+        bindLetter('R', () -> {
             if (inGame()) {
-                recordAndReturnToLevels();
+                loadLevel();
+                pack();
+                refresh();
             }
         });
-        bind("C", "changeCharacter", () -> {
+        bindLetter('C', () -> {
             if (inGame()) {
-                recordAndReturnToLevels();
+                showCharacterSelect();
             }
         });
-        bind("N", "changeName", () -> {
-            if (screen.equals(LEVELS_CARD)) {
+        bindLetter('N', () -> {
+            if (onLevelSelect()) {
                 showNameEntry();
             }
         });
 
-        bindTypedLetters();
+        // The rest of the alphabet exists only so a name can be typed with it.
+        for (char letter = 'A'; letter <= 'Z'; letter++) {
+            if (!boundLetters.contains(letter)) {
+                bindLetter(letter, () -> {
+                    // Nothing to do outside the name screen.
+                });
+            }
+        }
         bindNumberKeys();
+    }
+
+    /** Letters type on the name screen and do their own job everywhere else. */
+    private void bindLetter(char letter, Runnable whenNotTyping) {
+        boundLetters.add(letter);
+        bindKey(String.valueOf(letter), "key" + letter, () -> {
+            if (onNameScreen()) {
+                namePanel.type(letter);
+            } else {
+                whenNotTyping.run();
+            }
+        });
+    }
+
+    private void bindNumberKeys() {
+        for (int i = 1; i <= 9; i++) {
+            int index = i - 1;
+            char digit = (char) ('0' + i);
+            bindKey(String.valueOf(i), "pick" + i, () -> {
+                switch (screen) {
+                    case NAME_CARD -> namePanel.type(digit);
+                    case LEVELS_CARD -> levelSelectPanel.selectIndex(index);
+                    case SELECT_CARD -> selectPanel.selectIndex(index);
+                    default -> {
+                        // Digits do nothing during play.
+                    }
+                }
+            });
+        }
+    }
+
+    /** One direction, meaning whatever the screen showing needs it to mean. */
+    private void steer(int columnStep, int rowStep, Direction direction) {
+        switch (screen) {
+            case LEVELS_CARD -> levelSelectPanel.moveSelection(columnStep, rowStep);
+            case SELECT_CARD -> selectPanel.moveSelection(columnStep, rowStep);
+            case NAME_CARD -> {
+                // Nothing to steer while typing a name.
+            }
+            default -> {
+                if (state.movePlayer(direction)) {
+                    refresh();
+                }
+            }
+        }
     }
 
     private boolean inGame() {
         return screen.equals(GAME_CARD);
+    }
+
+    private boolean onNameScreen() {
+        return screen.equals(NAME_CARD);
+    }
+
+    private boolean onLevelSelect() {
+        return screen.equals(LEVELS_CARD);
     }
 
     private void onSpace() {
@@ -281,68 +354,36 @@ public final class GameFrame extends JFrame {
         }
     }
 
+    private void onEscape() {
+        switch (screen) {
+            case SELECT_CARD -> showLevelSelect();
+            case GAME_CARD -> recordAndReturnToLevels();
+            default -> {
+                // Name and level select have nowhere further back to go.
+            }
+        }
+    }
+
     /**
-     * Binds one arrow, plus its letter twin, to walking during play and to
-     * moving the highlight on the two select screens.
+     * Binds one key, refusing to replace an existing binding.
+     *
+     * <p>The refusal is the point. Silently overwriting is what broke undo and
+     * restart, and it broke them invisibly: the game ran, the keys did nothing,
+     * and only playing it found out.
      */
-    private void bindDirection(String arrowKey, String letterKey, Direction direction,
-                               int columnStep, int rowStep) {
-        Runnable action = () -> {
-            switch (screen) {
-                case LEVELS_CARD -> levelSelectPanel.moveSelection(columnStep, rowStep);
-                case SELECT_CARD -> selectPanel.moveSelection(columnStep, rowStep);
-                case NAME_CARD -> {
-                    // Nothing to steer while typing a name.
-                }
-                default -> {
-                    if (state.movePlayer(direction)) {
-                        refresh();
-                    }
-                }
-            }
-        };
-        bind(arrowKey, "go" + direction.name(), action);
-        // The letter twins have to give way to typing on the name screen.
-        bind(letterKey, "go" + direction.name() + "Alt", () -> {
-            if (!screen.equals(NAME_CARD)) {
-                action.run();
-            }
-        });
-    }
-
-    /** Letters and digits reach the name screen; elsewhere they do nothing. */
-    private void bindTypedLetters() {
-        for (char letter = 'A'; letter <= 'Z'; letter++) {
-            char typed = letter;
-            bind(String.valueOf(letter), "type" + letter, () -> {
-                if (screen.equals(NAME_CARD)) {
-                    namePanel.type(typed);
-                }
-            });
-        }
-    }
-
-    private void bindNumberKeys() {
-        for (int i = 1; i <= 9; i++) {
-            int index = i - 1;
-            char digit = (char) ('0' + i);
-            bind(String.valueOf(i), "pick" + i, () -> {
-                switch (screen) {
-                    case NAME_CARD -> namePanel.type(digit);
-                    case LEVELS_CARD -> levelSelectPanel.selectIndex(index);
-                    case SELECT_CARD -> selectPanel.selectIndex(index);
-                    default -> {
-                        // Digits do nothing during play.
-                    }
-                }
-            });
-        }
-    }
-
-    private void bind(String keyStroke, String actionName, Runnable action) {
+    private void bindKey(String keyStroke, String actionName, Runnable action) {
         InputMap inputMap = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap actionMap = root.getActionMap();
-        inputMap.put(KeyStroke.getKeyStroke(keyStroke), actionName);
+        KeyStroke stroke = KeyStroke.getKeyStroke(keyStroke);
+
+        Object existing = inputMap.get(stroke);
+        if (existing != null) {
+            throw new IllegalStateException(
+                    "Key " + keyStroke + " is already bound to " + existing
+                            + "; binding it again to " + actionName
+                            + " would silently replace it.");
+        }
+        inputMap.put(stroke, actionName);
         actionMap.put(actionName, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent event) {
@@ -354,5 +395,10 @@ public final class GameFrame extends JFrame {
     private void refresh() {
         gamePanel.repaint();
         hud.repaint();
+    }
+
+    /** The running level, so a test can press a key and check what it did. */
+    GameState gameState() {
+        return state;
     }
 }
