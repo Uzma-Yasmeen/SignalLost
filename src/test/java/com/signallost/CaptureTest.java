@@ -18,12 +18,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for a guard actually reaching the player.
+ * Tests for being caught, and for everything that is not being caught.
  *
- * <p>Before this, a hunter could run the player down, end its turn standing on
- * top of them, and nothing happened — the two simply overlapped and the player
- * walked away. That made the whole stealth layer decorative, because there was
- * no reason not to be seen. Being reached now ends the run.
+ * <p>Only a guard that is actively hunting can end an attempt. Everyone else is
+ * a moving wall. The earlier rule — any guard touching you is fatal — made a
+ * one-tile corridor a coin toss rather than a decision, and a solver run proved
+ * it left the level with no winning line at all.
  */
 class CaptureTest {
 
@@ -34,32 +34,50 @@ class CaptureTest {
                 "##########"));
     }
 
+    private static Hunter hunterAt(int col) {
+        Position post = new Position(1, col);
+        return new Hunter("H", post, List.of(post));
+    }
+
+    // --------------------------------------------------------- being caught
+
     @Test
-    @DisplayName("A hunter that reaches the player ends the run")
-    void beingReachedEndsTheRun() {
-        // Three tiles away and in plain sight. Standing still lets it walk in.
-        Hunter hunter = new Hunter("H", new Position(1, 4), List.of(new Position(1, 4)));
+    @DisplayName("A hunter that reaches the player ends the attempt")
+    void beingReachedEndsTheAttempt() {
+        Hunter hunter = hunterAt(4);
         GameState state = new GameState(hall(), List.of(hunter), 4);
 
         state.movePlayer(Direction.WAIT);
         assertEquals(GuardMode.HUNT, hunter.mode(), "it has seen the player");
-        assertFalse(state.isCaught(), "it has closed one tile, not three");
+        assertFalse(state.isCaught(), "it surged two tiles, and needed three");
 
-        state.movePlayer(Direction.WAIT);
         state.movePlayer(Direction.WAIT);
 
         assertTrue(state.isCaught());
-        assertTrue(state.isFinished());
+        assertTrue(state.isAttemptOver());
         assertEquals(state.player(), hunter.position(), "it is standing on the player");
     }
 
     @Test
-    @DisplayName("A caught run accepts no further moves")
-    void caughtRunIsOver() {
-        Hunter hunter = new Hunter("H", new Position(1, 2), List.of(new Position(1, 2)));
-        GameState state = new GameState(hall(), List.of(hunter), 4);
+    @DisplayName("Being caught ends the attempt, not the run, while lives remain")
+    void captureEndsTheAttemptNotTheRun() {
+        GameState state = new GameState(hall(), List.of(hunterAt(4)), 4);
 
-        state.movePlayer(Direction.RIGHT);
+        state.movePlayer(Direction.WAIT);
+        state.movePlayer(Direction.WAIT);
+        assertTrue(state.isCaught());
+
+        assertFalse(state.isFinished(), "there are lives left");
+        assertEquals(GameState.STARTING_LIVES, state.livesLeft(), "unspent until claimed");
+    }
+
+    @Test
+    @DisplayName("A caught attempt accepts no further moves")
+    void caughtAttemptAcceptsNoMoves() {
+        GameState state = new GameState(hall(), List.of(hunterAt(4)), 4);
+
+        state.movePlayer(Direction.WAIT);
+        state.movePlayer(Direction.WAIT);
         assertTrue(state.isCaught());
 
         int turns = state.turnsTaken();
@@ -70,50 +88,75 @@ class CaptureTest {
     @Test
     @DisplayName("Being caught counts as being seen")
     void captureCountsAsASighting() {
-        Hunter hunter = new Hunter("H", new Position(1, 2), List.of(new Position(1, 2)));
-        GameState state = new GameState(hall(), List.of(hunter), 4);
+        GameState state = new GameState(hall(), List.of(hunterAt(4)), 4);
 
-        state.movePlayer(Direction.RIGHT);
+        state.movePlayer(Direction.WAIT);
+        state.movePlayer(Direction.WAIT);
 
         assertTrue(state.wasSpotted());
-        assertEquals(1, state.sightings());
+        assertTrue(state.sightings() > 0);
     }
 
     @Test
-    @DisplayName("Undo takes back the capture and puts the guard where it was")
-    void undoReopensACaughtRun() {
-        Hunter hunter = new Hunter("H", new Position(1, 2), List.of(new Position(1, 2)));
-        GameState state = new GameState(hall(), List.of(hunter), 4);
-        Position hunterStart = hunter.position();
+    @DisplayName("A capture cannot be undone: that is what makes a life cost something")
+    void captureCannotBeUndone() {
+        GameState state = new GameState(hall(), List.of(hunterAt(4)), 4);
 
-        state.movePlayer(Direction.RIGHT);
+        state.movePlayer(Direction.WAIT);
+        state.movePlayer(Direction.WAIT);
         assertTrue(state.isCaught());
 
-        state.undoLastMove();
-
-        assertFalse(state.isCaught());
-        assertFalse(state.isFinished());
-        assertEquals(hunterStart, hunter.position());
-        assertEquals(0, state.sightings());
-        assertTrue(state.movePlayer(Direction.DOWN) || state.movePlayer(Direction.WAIT),
-                "the player can try something else");
+        assertFalse(state.canUndo());
+        assertFalse(state.undoLastMove());
+        assertTrue(state.isCaught(), "still caught");
     }
 
+    // -------------------------------------------------- guards as obstacles
+
     @Test
-    @DisplayName("A patroller blundering into you catches you just the same")
-    void contactIsContact() {
-        // It never chases, but its route walks straight over the player.
-        Patroller patroller = new Patroller("P", new Position(1, 5),
-                List.of(new Position(1, 5), new Position(1, 1)));
+    @DisplayName("A patroller cannot catch you, however long it stands on your doorstep")
+    void aPatrollerNeverCatchesYou() {
+        // Its route walks the length of the hall, straight at the player.
+        Patroller patroller = new Patroller("P", new Position(1, 6),
+                List.of(new Position(1, 6), new Position(1, 1)));
         GameState state = new GameState(hall(), List.of(patroller), 4);
 
-        // Stand still and let it walk the length of the hall onto you.
-        for (int i = 0; i < 6 && !state.isCaught(); i++) {
+        for (int turn = 0; turn < 12; turn++) {
             state.movePlayer(Direction.WAIT);
         }
 
-        assertTrue(state.isCaught(), "it should have reached the player's tile");
+        assertFalse(state.isCaught(), "a patroller is an obstacle, not a hazard");
+        assertFalse(state.isAttemptOver());
     }
+
+    @Test
+    @DisplayName("A guard blocks a tile: walking into one is not a move, and not a death")
+    void guardsBlockLikeWalls() {
+        Patroller patroller = new Patroller("P", new Position(1, 2), List.of(new Position(1, 2)));
+        GameState state = new GameState(hall(), List.of(patroller), 4);
+
+        assertFalse(state.movePlayer(Direction.RIGHT), "the guard is in the way");
+        assertEquals(0, state.turnsTaken(), "a refused move costs nothing");
+        assertFalse(state.isCaught());
+    }
+
+    @Test
+    @DisplayName("A patroller stops rather than walking through the player")
+    void aPatrollerStopsAtThePlayer() {
+        Patroller patroller = new Patroller("P", new Position(1, 3),
+                List.of(new Position(1, 3), new Position(1, 1)));
+        GameState state = new GameState(hall(), List.of(patroller), 4);
+
+        state.movePlayer(Direction.WAIT);
+        state.movePlayer(Direction.WAIT);
+        state.movePlayer(Direction.WAIT);
+
+        assertEquals(new Position(1, 2), patroller.position(),
+                "it should be stopped on the tile beside the player");
+        assertFalse(state.isCaught());
+    }
+
+    // ---------------------------------------------------------------- escape
 
     @Test
     @DisplayName("Escaping beats being caught on the same turn")
@@ -132,6 +175,6 @@ class CaptureTest {
         state.movePlayer(Direction.RIGHT);
 
         assertTrue(state.hasEscaped());
-        assertFalse(state.isCaught(), "getting out is getting out");
+        assertFalse(state.isCaught());
     }
 }

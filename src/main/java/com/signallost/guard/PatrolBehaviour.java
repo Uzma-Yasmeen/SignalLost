@@ -42,6 +42,13 @@ public final class PatrolBehaviour implements GuardBehaviour {
         Position step = AStarPathfinder.nextStepTowards(map, current.position(), target)
                 .orElse(current.position());
 
+        // A patroller cannot catch anybody, so it does not walk through them
+        // either: it stops, and the player has a wall to time rather than a
+        // death sentence coming down a one-tile corridor.
+        if (step.equals(player)) {
+            step = current.position();
+        }
+
         return new GuardState(step, GuardMode.PATROL, waypoint, current.lastSeenPlayer(), 0, false);
     }
 }

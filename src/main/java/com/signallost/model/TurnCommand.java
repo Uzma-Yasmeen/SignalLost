@@ -1,6 +1,7 @@
 package com.signallost.model;
 
 import com.signallost.guard.Guard;
+import com.signallost.guard.GuardMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,11 +74,13 @@ final class TurnCommand implements Command {
             state.spotted = false;
             return;
         }
-        // A guard standing on the player has caught them. Contact is contact:
-        // a patroller that blunders into you is as final as a hunter that ran
-        // you down, and a rule with no exceptions is one a player can learn.
+        // Only a guard that is actually hunting can catch you. Everyone else
+        // is a moving wall: they block a corridor, they can raise the alarm,
+        // but they cannot end the run. Letting a patroller kill by blundering
+        // into you made one-tile corridors a coin toss rather than a decision.
         state.caught = state.guards().stream()
-                .anyMatch(guard -> guard.position().equals(state.player));
+                .anyMatch(guard -> guard.mode() == GuardMode.HUNT
+                        && guard.position().equals(state.player));
 
         state.spotted = state.caught || state.isPlayerWatched();
         if (state.spotted) {

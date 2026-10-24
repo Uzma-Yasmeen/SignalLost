@@ -111,6 +111,12 @@ public final class GameFrame extends JFrame {
         bind("SPACE", "waitOrConfirm", () -> {
             if (choosing) {
                 selectPanel.confirmSelection();
+            } else if (state.isAttemptOver()) {
+                // Space is how a life gets spent, so a capture is always a
+                // deliberate acknowledgement rather than something that
+                // scrolls past before the player has read it.
+                state.beginNextLife();
+                refresh();
             } else if (state.movePlayer(Direction.WAIT)) {
                 refresh();
             }

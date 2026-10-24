@@ -65,7 +65,8 @@ class TurnLimitTest {
         state.movePlayer(Direction.RIGHT);
 
         assertTrue(state.hasFailed());
-        assertTrue(state.isFinished());
+        assertTrue(state.isAttemptOver(), "this attempt is over");
+        assertFalse(state.isFinished(), "but the run is not: there are lives left");
         assertEquals(0, state.turnsRemaining());
     }
 
@@ -82,18 +83,32 @@ class TurnLimitTest {
     }
 
     @Test
-    @DisplayName("Undo takes back the failure and lets play continue")
-    void undoReopensAFailedRun() {
+    @DisplayName("Running the clock out is final: undo cannot take it back")
+    void undoCannotReopenAFailedRun() {
         GameState state = timed(1);
 
         state.movePlayer(Direction.RIGHT);
         assertTrue(state.hasFailed());
 
-        state.undoLastMove();
+        assertFalse(state.canUndo(), "an attempt that ended is not a mistake to rewind");
+        assertFalse(state.undoLastMove());
+        assertTrue(state.hasFailed());
+    }
+
+    @Test
+    @DisplayName("Spending a life gives the clock back")
+    void anotherLifeResetsTheClock() {
+        GameState state = timed(2);
+
+        state.movePlayer(Direction.RIGHT);
+        state.movePlayer(Direction.RIGHT);
+        assertTrue(state.hasFailed());
+
+        assertTrue(state.beginNextLife());
 
         assertFalse(state.hasFailed());
-        assertFalse(state.isFinished());
-        assertTrue(state.movePlayer(Direction.RIGHT), "the player can try something else");
+        assertEquals(0, state.turnsTaken(), "a life is a clean attempt");
+        assertEquals(2, state.turnsRemaining());
     }
 
     @Test

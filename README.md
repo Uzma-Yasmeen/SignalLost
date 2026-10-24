@@ -39,7 +39,7 @@ Pick a character, then:
 | Key | Does |
 | --- | --- |
 | arrow keys, or W A S D | move one tile, which costs one turn |
-| space, or `.` | wait one turn |
+| space, or `.` | wait one turn, or claim your next life after a capture |
 | `U` | undo the last turn: guards, sightings and the clock included |
 | `H` | show or hide the suggested route |
 | `M` | developer toggle: reveal the whole map |
@@ -52,7 +52,7 @@ Tests:
 mvn -q test
 ```
 
-107 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+117 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, keys, hints, spotting, the turn limit, level
 integrity and the window's select-to-level wiring.
 
@@ -124,7 +124,7 @@ they saw, so the remembered map stays.
 
 | Type | Sight | Behaviour |
 | --- | --- | --- |
-| Patroller | 3 | Walks its route and never chases — but seeing you raises the alarm |
+| Patroller | 3 | Walks its route, never chases, **cannot catch you** — but seeing you raises the alarm |
 | Hunter | 4 | **Surges** after what it sees, answers alarms, searches, then gives up |
 
 ### Speed, and why you cannot run
@@ -191,17 +191,29 @@ the dumbest guard in the facility is the most dangerous thing to walk past.
 A hunter that can already see you ignores the report, because its own eyes are
 better information.
 
-**Being reached is the end of the run.** A guard that ends its turn standing on
-the player has caught them. Contact is contact: a patroller that blunders into
-you is as final as a hunter that ran you down, because a rule with no exceptions
-is one a player can learn. Getting out still beats it, so reaching the exit as a
-guard closes in is an escape, not a capture.
+**Only a hunting guard can catch you.** A guard that has seen you and is closing
+in ends the attempt if it reaches your tile. Everyone else — a patroller, or a
+guard that has lost you and is searching — is a **moving wall**: it blocks the
+tile it stands on, it can raise the alarm, and it cannot kill. Nobody walks
+through anybody, in either direction.
 
-That rule is what makes the rest of the game mean anything. Without it a hunter
-could run you down, stand on top of you, and you would simply walk away — the
-stealth layer was decoration, and the only way to lose was the clock.
+That distinction was not a preference, it was forced. An earlier rule made any
+guard touching you fatal, on the reasoning that a rule with no exceptions is
+easier to learn. Then a solver run showed the level had **no winning line at
+all**: the corridors are one tile wide, so a patroller coming the other way was
+unavoidable death delivered by something that could not even see you.
 
-Being seen is **not** the end of the run. It is counted, `U` takes the move back,
+**You get three lives.** Being caught, or running the clock out, ends the
+attempt and costs one. The player goes back to the start, the keys go back on
+the floor, the guards go back to their posts and the clock goes back to zero —
+a life is a clean attempt, not a wounded continuation. Sightings carry across,
+because they score the run rather than the attempt.
+
+**A capture cannot be undone.** Undo is for mistakes you notice, not the ones
+that cost you a life; otherwise the lives counter would be decoration, since
+you could rewind every death. Running out of lives ends the run.
+
+Being seen is **not** the end of the attempt. It is counted, `U` takes the move back,
 and undo calls the alarm off too — the facility should not stay alerted about a
 sighting that, as far as the game is concerned, never happened. That makes this a
 puzzle you work out rather than one you lose by surprise. The count is what a
@@ -238,8 +250,10 @@ one in front of you rather than back across the level.
 
 ## Levels
 
-**Level 1** is short and teaches the rules: you meet a patroller within a few
-turns and a hunter soon after, and it holds three keys inside 120 turns.
+**Level 1** is a lattice: corridors with pillars, so there is always a way
+round. That matters more than it sounds — the previous level 1 had a single
+one-tile chokepoint and its only route south ran the length of the hunter's
+patrol with no cover, which a solver proved unwinnable. Three keys, 150 turns.
 **Level 2** is the large facility, about 130 turns at its fastest. Level 1 was
 built after playing level 2 first and finding it had no guard anywhere near the
 start, so nothing happened for the first fifty turns.
@@ -337,6 +351,32 @@ java -cp "target/classes;target/test-classes" com.signallost.tools.ScreenshotToo
 | 6 | Multiple levels, star rating, title and level-complete screens |
 | 7 | SRS document and UML class and sequence diagrams |
 | 8 | Phase 2: a Spring Boot and PostgreSQL leaderboard with a daily level |
+
+## Proving it is actually playable
+
+The game is deterministic, so it can be searched rather than guessed at. The
+work that is not in this repository but shaped it most is a solver that walks
+the entire game tree breadth-first and answers one question: **is there a
+winning line at all?**
+
+It has earned its keep three times, and twice at my own expense:
+
+- It found that level 1 could not be won, with either guard present. No amount
+  of play would have been enough to tell the difference between a hard level and
+  an impossible one.
+- It found two bugs in itself first. A depth-first version memoised states
+  without the turn count, which is unsound while a clock is running; and the
+  state key counted *how many* keys you held instead of *which*, so holding the
+  first key and holding the third looked identical and perfectly good routes got
+  pruned. Both versions confidently reported winnable levels as lost.
+- Playing the level with two scripted players — one that follows the hint, one
+  that only runs from hunters — showed the hint walked the player into a hunter,
+  because it routed around where guards were looking rather than where they
+  would be. The hint now weights proximity to a guard, heavily when it is
+  hunting.
+
+The lesson worth keeping: a test suite that passes tells you the rules work. It
+does not tell you the game can be won.
 
 ## Build notes
 

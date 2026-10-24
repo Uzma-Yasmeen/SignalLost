@@ -36,6 +36,12 @@ public final class AlertBehaviour implements GuardBehaviour {
         Position step = AStarPathfinder.nextStepTowards(map, current.position(), target)
                 .orElse(current.position());
 
+        // Searching is not chasing. A guard that has lost you blocks your way
+        // if you are in it, but it does not run you down.
+        if (step.equals(player)) {
+            step = current.position();
+        }
+
         return new GuardState(step, GuardMode.ALERT, current.routeIndex(), target,
                 Math.max(0, current.alertTurnsLeft() - 1), false);
     }

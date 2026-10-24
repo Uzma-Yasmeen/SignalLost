@@ -2,6 +2,7 @@ package com.signallost.model;
 
 import com.signallost.guard.Guard;
 import com.signallost.guard.GuardMode;
+import com.signallost.guard.GuardState;
 import com.signallost.pathfinding.AStarPathfinder;
 import com.signallost.vision.FogOfWar;
 
@@ -32,8 +33,24 @@ public final class GameState {
      */
     private static final int GUARD_AVOIDANCE_COST = 8;
 
+    /**
+     * How far around itself a guard makes the ground expensive, and how much.
+     *
+     * <p>Avoiding only the tiles a guard can see right now is not enough advice
+     * to survive on. A hunter covers ground faster than the player, so by the
+     * time you reach a tile it was merely near, it is looking at you. The hint
+     * therefore gives guards a berth that widens when they are hunting.
+     */
+    private static final int NEAR_GUARD_REACH = 3;
+    private static final int NEAR_HUNTER_REACH = 5;
+    private static final int NEAR_GUARD_COST = 6;
+    private static final int NEAR_HUNTER_COST = 14;
+
     /** A turn limit of this value means the level is untimed. */
     public static final int NO_TURN_LIMIT = 0;
+
+    /** Attempts at a level before the run is over. */
+    public static final int STARTING_LIVES = 3;
 
     private final GameMap map;
     private final FogOfWar fog;
@@ -41,6 +58,9 @@ public final class GameState {
     private final List<Guard> guards;
     private final int turnLimit;
     private final int keysRequired;
+    private final Position startTile;
+    private final List<Position> keySpawns;
+    private final List<GuardState> guardSpawns;
     private final Deque<Command> history = new ArrayDeque<>();
 
     // Written only by commands in this package; read by everyone through getters.
@@ -52,6 +72,8 @@ public final class GameState {
     boolean spotted;
     boolean failed;
     boolean caught;
+    int livesLeft = STARTING_LIVES;
+    boolean runOver;
 
     /** A level with no guards, which is how most rule tests are set up. */
     public GameState(GameMap map, int sightRadius) {
@@ -67,6 +89,8 @@ public final class GameState {
         this.guards = List.copyOf(guards);
         this.turnLimit = Math.max(NO_TURN_LIMIT, turnLimit);
         this.keysRequired = map.count(TileType.KEY);
+        this.keySpawns = map.findAll(TileType.KEY);
+        this.guardSpawns = this.guards.stream().map(Guard::state).toList();
         Position start = map.findFirst(TileType.START);
         if (start == null) {
             throw new IllegalArgumentException("Level has no start tile '@'");
@@ -77,6 +101,7 @@ public final class GameState {
         }
         // The start marker is only a spawn point; underneath it is ordinary floor.
         map.setTileAt(start, TileType.FLOOR);
+        this.startTile = start;
         this.player = start;
         this.fog = new FogOfWar(map, sightRadius);
         this.fog.update(player);
@@ -90,11 +115,16 @@ public final class GameState {
      *         already-finished level refused it
      */
     public boolean movePlayer(Direction direction) {
-        if (isFinished()) {
+        if (isFinished() || isAttemptOver()) {
             return false;
         }
         Position target = direction.applyTo(player);
         if (direction != Direction.WAIT && !map.isWalkable(target)) {
+            return false;
+        }
+        // Guards block like walls. Walking into one is not a way to die, it is
+        // simply not a move.
+        if (direction != Direction.WAIT && isGuardOn(target)) {
             return false;
         }
         // The player's action and every guard's reply are one undoable turn.
@@ -111,15 +141,24 @@ public final class GameState {
      * @return true when something was undone, false when the stack was empty
      */
     public boolean undoLastMove() {
-        if (history.isEmpty()) {
+        // Being caught, or running the clock out, is final. Undo is for
+        // mistakes you notice, not for the ones that cost you a life.
+        if (isAttemptOver() || history.isEmpty()) {
             return false;
         }
         history.pop().undo();
         return true;
     }
 
+    /**
+     * Whether undo would do anything.
+     *
+     * <p>It has to agree with {@link #undoLastMove()}, including the refusal
+     * once an attempt is over: a caller that loops while this is true and undo
+     * keeps refusing would spin forever.
+     */
     public boolean canUndo() {
-        return !history.isEmpty();
+        return !isAttemptOver() && !history.isEmpty();
     }
 
     /** How many actions are on the undo stack. */
@@ -163,7 +202,7 @@ public final class GameState {
         }
 
         List<Position> path = AStarPathfinder.findPath(map, player, goal,
-                tile -> watched.contains(tile) ? GUARD_AVOIDANCE_COST : 0);
+                tile -> hintCost(tile, watched));
 
         // The first entry is the tile the player already stands on.
         return path.size() <= 1
@@ -188,6 +227,31 @@ public final class GameState {
             }
         }
         return nearest;
+    }
+
+    /** True when some guard is standing on this tile. */
+    public boolean isGuardOn(Position tile) {
+        return guards.stream().anyMatch(guard -> guard.position().equals(tile));
+    }
+
+    /**
+     * What the hint pays to step on a tile, on top of the step itself.
+     *
+     * <p>Being watched costs; being close to a guard costs more the closer it
+     * is, and far more when that guard is hunting. The result is a route that
+     * gives trouble a wide berth rather than one that technically threads it.
+     */
+    private int hintCost(Position tile, Set<Position> watched) {
+        int cost = watched.contains(tile) ? GUARD_AVOIDANCE_COST : 0;
+        for (Guard guard : guards) {
+            boolean hunting = guard.mode() == GuardMode.HUNT;
+            int reach = hunting ? NEAR_HUNTER_REACH : NEAR_GUARD_REACH;
+            int distance = guard.position().manhattanDistanceTo(tile);
+            if (distance <= reach) {
+                cost += (reach - distance + 1) * (hunting ? NEAR_HUNTER_COST : NEAR_GUARD_COST);
+            }
+        }
+        return cost;
     }
 
     public List<Guard> guards() {
@@ -299,7 +363,63 @@ public final class GameState {
     }
 
     /** Escaped or out of time: either way, no more moves are accepted. */
+    /** This attempt is over, but the run may not be: a life is waiting to be spent. */
+    public boolean isAttemptOver() {
+        return !escaped && (caught || failed);
+    }
+
+    /** The whole run is over: either out, or out of lives. */
     public boolean isFinished() {
-        return escaped || failed || caught;
+        return escaped || runOver;
+    }
+
+    public int livesLeft() {
+        return livesLeft;
+    }
+
+    public boolean isRunOver() {
+        return runOver;
+    }
+
+    /**
+     * Spends a life and sets the level back up for another attempt.
+     *
+     * <p>The player goes back to the start, the keys go back on the floor, the
+     * guards go back to their posts and the clock goes back to zero: a life is
+     * a clean attempt, not a wounded continuation. Sightings are the exception,
+     * because they are the run's score rather than the attempt's.
+     *
+     * @return true when another attempt began, false when that was the last life
+     */
+    public boolean beginNextLife() {
+        if (!isAttemptOver()) {
+            return false;
+        }
+        livesLeft--;
+        if (livesLeft <= 0) {
+            livesLeft = 0;
+            runOver = true;
+            return false;
+        }
+        respawn();
+        return true;
+    }
+
+    private void respawn() {
+        for (Position keyTile : keySpawns) {
+            map.setTileAt(keyTile, TileType.KEY);
+        }
+        for (int i = 0; i < guards.size(); i++) {
+            guards.get(i).applyState(guardSpawns.get(i));
+        }
+        player = startTile;
+        keysHeld = 0;
+        turnsTaken = 0;
+        spotted = false;
+        caught = false;
+        failed = false;
+        history.clear();
+        // The fog keeps what it has explored: a new attempt, not amnesia.
+        fog.update(player);
     }
 }

@@ -119,21 +119,11 @@ public final class GamePanel extends JPanel {
         drawGuards(g);
         drawPlayer(g);
 
-        if (state.wasSpotted() && !state.isFinished()) {
+        if (state.wasSpotted() && !state.isAttemptOver() && !state.isFinished()) {
             drawAlarmVignette(g);
         }
-        if (state.isCaught()) {
-            drawEndOverlay(g, "CAUGHT", Palette.DANGER,
-                    "a guard reached you on turn " + state.turnsTaken()
-                            + "  ·  U to take the move back, R to restart");
-        } else if (state.hasEscaped()) {
-            drawEndOverlay(g, "ESCAPED", Palette.EXIT_OPEN,
-                    state.turnsTaken() + " turns  ·  " + sightingsLine() + "  ·  R to replay");
-        } else if (state.hasFailed()) {
-            drawEndOverlay(g, "OUT OF TIME", Palette.DANGER,
-                    "the alarm went up at turn " + state.turnsTaken()
-                            + "  ·  U to take a move back, R to restart");
-        }
+        drawOverlays(g);
+
         g.dispose();
     }
 
@@ -366,6 +356,25 @@ public final class GamePanel extends JPanel {
     }
 
     // ---------------------------------------------------------------- extras
+
+    /** Whatever the player most needs told: run over, escaped, or attempt lost. */
+    private void drawOverlays(Graphics2D g) {
+        if (state.isRunOver()) {
+            drawEndOverlay(g, "GAME OVER", Palette.DANGER,
+                    "out of lives  ·  " + sightingsLine() + "  ·  R to start again");
+        } else if (state.hasEscaped()) {
+            drawEndOverlay(g, "ESCAPED", Palette.EXIT_OPEN,
+                    state.turnsTaken() + " turns  ·  " + sightingsLine() + "  ·  R to replay");
+        } else if (state.isAttemptOver()) {
+            int attemptsLeft = state.livesLeft() - 1;
+            String detail = attemptsLeft > 0
+                    ? attemptsLeft + (attemptsLeft == 1 ? " life left" : " lives left")
+                            + "  ·  SPACE to try again"
+                    : "that was the last life  ·  SPACE to see the damage";
+            drawEndOverlay(g, state.isCaught() ? "CAUGHT" : "OUT OF TIME",
+                    Palette.DANGER, detail);
+        }
+    }
 
     /**
      * A red glow around the edge of the screen, and a line saying what happened.

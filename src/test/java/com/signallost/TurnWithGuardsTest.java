@@ -87,8 +87,9 @@ class TurnWithGuardsTest {
     @Test
     @DisplayName("Undo rewinds a hunter's mode, not just its position")
     void undoRewindsGuardMode() {
-        // The hunter starts three tiles from the player's path and will spot them.
-        Hunter hunter = new Hunter("H", new Position(1, 4), List.of(new Position(1, 4)));
+        // Far enough that it spots the player and gives chase without reaching
+        // them: a capture would end the attempt and undo would rightly refuse.
+        Hunter hunter = new Hunter("H", new Position(1, 6), List.of(new Position(1, 6)));
         GameState state = new GameState(hall(), List.of(hunter), 3);
 
         assertEquals(GuardMode.PATROL, hunter.mode());
@@ -103,9 +104,12 @@ class TurnWithGuardsTest {
     @Test
     @DisplayName("Undoing many turns of several guards leaves them exactly where they began")
     void undoRewindsEveryGuardOverManyTurns() {
-        Guard patroller = new Patroller("P", new Position(3, 1),
+        // Two patrollers: neither can capture, so the run survives long enough
+        // for the point of this test, which is that undo rewinds all of them.
+        Guard patroller = new Patroller("P1", new Position(3, 1),
                 List.of(new Position(3, 1), new Position(3, 8)));
-        Guard hunter = new Hunter("H", new Position(2, 8), List.of(new Position(2, 8)));
+        Guard hunter = new Patroller("P2", new Position(2, 8),
+                List.of(new Position(2, 8), new Position(2, 2)));
         GameState state = new GameState(hall(), List.of(patroller, hunter), 3);
 
         Position patrollerStart = patroller.position();

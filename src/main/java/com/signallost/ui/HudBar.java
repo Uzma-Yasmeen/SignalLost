@@ -93,11 +93,26 @@ public final class HudBar extends JPanel {
         if (state.canUndo()) {
             x = drawChip(g, x, "UNDO " + state.undoDepth(), Palette.ACCENT, Glyph.DOT);
         }
+        x = drawChip(g, x, livesLabel(), livesColour(), Glyph.DOT);
         x = drawChip(g, x,
                 "KEYS " + state.keysHeld() + "/" + state.keysRequired(),
                 state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY,
                 Glyph.DIAMOND);
         drawTurnCounter(g, x);
+    }
+
+    private String livesLabel() {
+        int lives = state.livesLeft();
+        return lives == 1 ? "LAST LIFE" : "LIVES " + lives;
+    }
+
+    /** The counter turns amber then red as the attempts run out. */
+    private Color livesColour() {
+        int lives = state.livesLeft();
+        if (lives <= 1) {
+            return Palette.DANGER;
+        }
+        return lives == 2 ? Palette.GUARD_ALERT : Palette.TEXT_DIM;
     }
 
     private static Color alertColour(GuardMode mode) {
