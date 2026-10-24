@@ -164,7 +164,7 @@ class ProgressTest {
         assertEquals(0, levels.get(0).starsToUnlock(), "the first level is always open");
         assertTrue(levels.size() >= 2);
         assertEquals("LEVEL 1", levels.get(0).displayName());
-        assertEquals("1", levels.get(0).shortLabel());
+        assertEquals("level2", levels.get(1).name(), "the second box is the second level");
     }
 
     @Test

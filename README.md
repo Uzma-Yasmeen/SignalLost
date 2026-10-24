@@ -323,9 +323,16 @@ level2 1
 
 ## Levels
 
-Four levels ship: **1** a small lattice, **3** a wider one, **4** a tall one,
-and **2** the large facility, unlocked last because it is the hardest. They are
-ordered by the stars they cost to open rather than by their file names.
+Four levels ship, numbered in play order: **1** a small lattice, **2** a wider
+one, **3** a tall one, **4** the large facility. Each costs stars to open — 0,
+1, 3 and 6 — so the hardest comes last.
+
+The file names *are* the play order, and the select screen numbers its boxes by
+position rather than by anything parsed out of a name. Those two drifted apart
+once: the levels were ordered by unlock cost while being labelled from their
+file names, so the grid read 1, 3, 3, 6 and looked like level 2 had gone
+missing. A locked box shows its own number with the cost underneath, rather than
+showing the cost as the number.
 
 **Level 1** is a lattice: corridors with pillars, so there is always a way
 round. That matters more than it sounds — the previous level 1 had a single

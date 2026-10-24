@@ -222,10 +222,10 @@ public final class LevelSelectPanel extends JPanel {
 
         if (unlocked) {
             drawStars(g, bounds, profile.starsOn(entry.name()));
-            drawNumber(g, bounds, entry.shortLabel(), isSelected);
+            drawNumber(g, bounds, String.valueOf(index + 1), isSelected);
             drawBest(g, bounds, profile.bestOn(entry.name()));
         } else {
-            drawLock(g, bounds, entry.starsToUnlock());
+            drawLock(g, bounds, index + 1, entry.starsToUnlock());
         }
     }
 
@@ -239,6 +239,12 @@ public final class LevelSelectPanel extends JPanel {
         }
     }
 
+    /**
+     * The box number, which is its position in the list rather than anything
+     * taken from the file name. The two drifted apart once already: the levels
+     * were ordered by the stars they cost while being labelled from their file
+     * names, so the grid read 1, 3, 3, 6 and looked like level 2 was missing.
+     */
     private void drawNumber(Graphics2D g, Rectangle bounds, String label, boolean isSelected) {
         g.setFont(Fonts.display(46f));
         g.setColor(isSelected ? Palette.TEXT : Palette.withAlpha(Palette.TEXT, 190));
@@ -261,27 +267,35 @@ public final class LevelSelectPanel extends JPanel {
                 bounds.y + bounds.height - 22);
     }
 
-    private void drawLock(Graphics2D g, Rectangle bounds, int starsNeeded) {
-        g.setFont(Fonts.display(34f));
-        g.setColor(Palette.withAlpha(Palette.TEXT, 90));
-        String label = String.valueOf(starsNeeded);
+    /**
+     * A locked box still shows which level it is.
+     *
+     * <p>It used to show only the stars needed, as one big number, so the
+     * fourth box read "6" and looked like level six. The level number stays in
+     * the same place it occupies on an unlocked box, dimmed, and the cost goes
+     * underneath where it cannot be mistaken for it.
+     */
+    private void drawLock(Graphics2D g, Rectangle bounds, int number, int starsNeeded) {
+        g.setFont(Fonts.display(46f));
+        g.setColor(Palette.withAlpha(Palette.TEXT, 60));
+        String label = String.valueOf(number);
         FontMetrics metrics = g.getFontMetrics();
-        int textWidth = metrics.stringWidth(label);
+        g.drawString(label,
+                bounds.x + (bounds.width - metrics.stringWidth(label)) / 2,
+                bounds.y + 108);
 
-        double starSize = 30;
-        double totalWidth = textWidth + 8 + starSize;
+        g.setFont(Fonts.bodyBold(13f));
+        FontMetrics costMetrics = g.getFontMetrics();
+        String cost = starsNeeded + " stars to unlock";
+        int costWidth = costMetrics.stringWidth(cost);
+        double starSize = 22;
+        double totalWidth = starSize + 6 + costWidth;
         double x = bounds.getCenterX() - totalWidth / 2;
+        int baseline = bounds.y + bounds.height - 26;
 
-        g.drawString(label, (int) x, bounds.y + bounds.height / 2 + 10);
-        ObjectSprite.paintStar(g, x + textWidth + 8 + starSize / 2,
-                bounds.y + bounds.height / 2.0, starSize, false);
-
-        g.setFont(Fonts.body(11f));
+        ObjectSprite.paintStar(g, x + starSize / 2, baseline - 6, starSize, false);
         g.setColor(Palette.TEXT_DIM);
-        String hint = "stars to unlock";
-        g.drawString(hint,
-                bounds.x + (bounds.width - g.getFontMetrics().stringWidth(hint)) / 2,
-                bounds.y + bounds.height - 28);
+        g.drawString(cost, (int) (x + starSize + 6), baseline);
     }
 
     private void drawFooter(Graphics2D g) {
