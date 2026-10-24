@@ -62,6 +62,11 @@ public final class ScreenshotTool {
 
         SwingUtilities.invokeAndWait(() -> {
             try {
+                // Each level's shape, revealed, so the set can be compared.
+                captureLayout(outputDir.resolve("10-level2-rooms.png"), "level2", Critter.FOX);
+                captureLayout(outputDir.resolve("11-level3-rings.png"), "level3", Critter.FROG);
+                captureLayout(outputDir.resolve("12-level4-facility.png"), "level4", Critter.PANDA);
+
                 // Who is playing, and what they have done so far.
                 captureName(outputDir.resolve("08-name.png"));
                 captureLevels(outputDir.resolve("09-level-select.png"));
@@ -122,6 +127,22 @@ public final class ScreenshotTool {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(Palette.BACKDROP);
         root.add(new HudBar(state, critter, "level1"), BorderLayout.NORTH);
+        root.add(new GamePanel(state, critter), BorderLayout.CENTER);
+        root.add(new FooterBar(), BorderLayout.SOUTH);
+        write(target, root);
+    }
+
+    /** A whole level with the fog lifted, which is how the shapes get compared. */
+    private static void captureLayout(Path target, String levelName, Critter critter)
+            throws IOException {
+        Level level = LevelLoader.loadFromResource(levelName);
+        GameState state = new GameState(
+                level.map(), level.guards(), SIGHT_RADIUS, level.turnLimit());
+        state.fog().setRevealAll(true);
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(Palette.BACKDROP);
+        root.add(new HudBar(state, critter, levelName), BorderLayout.NORTH);
         root.add(new GamePanel(state, critter), BorderLayout.CENTER);
         root.add(new FooterBar(), BorderLayout.SOUTH);
         write(target, root);

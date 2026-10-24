@@ -323,9 +323,23 @@ level2 1
 
 ## Levels
 
-Four levels ship, numbered in play order: **1** a small lattice, **2** a wider
-one, **3** a tall one, **4** the large facility. Each costs stars to open — 0,
-1, 3 and 6 — so the hardest comes last.
+Four levels ship, numbered in play order, and each is a **different shape**:
+
+| | Shape | Why it plays differently |
+| --- | --- | --- |
+| 1 | lattice of corridors and pillars | always a way round; teaches the rules |
+| 2 | four rooms joined by narrow doors | open space to cross, chokepoints to time |
+| 3 | concentric rings | one key in the middle, two ways in, guards circling |
+| 4 | the large facility | long halls and dead ends; the hardest |
+
+They cost 0, 1, 3 and 6 stars to open, so the hardest comes last.
+
+The first three were all lattices to begin with, because a lattice trivially
+passes the fairness check — there is cover everywhere by construction. Safe, and
+three levels that played identically. Varying the shape meant levels that could
+genuinely be wrong, which is what the checks are for: the ring level shipped with
+its centre key sealed behind a ring that had no doors, twice, and both times the
+build caught it before anybody played it.
 
 The file names *are* the play order, and the select screen numbers its boxes by
 position rather than by anything parsed out of a name. Those two drifted apart
