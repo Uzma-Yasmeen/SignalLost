@@ -134,11 +134,14 @@ class SpottingTest {
     @Test
     @DisplayName("Reaching the exit while being watched still counts as escaping")
     void escapingUnderWatchStillWins() {
+        // The sentry watches the corridor from the row below rather than
+        // standing in it: walking onto a guard is being caught, not watched.
         GameMap map = LevelLoader.parse(List.of(
                 "#######",
                 "#@K..E#",
+                "#.....#",
                 "#######"));
-        Patroller sentry = new Patroller("P", new Position(1, 4), List.of(new Position(1, 4)));
+        Patroller sentry = new Patroller("P", new Position(2, 3), List.of(new Position(2, 3)));
         GameState state = new GameState(map, List.of(sentry), 4);
 
         for (int i = 0; i < 4; i++) {

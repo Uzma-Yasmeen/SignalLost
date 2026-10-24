@@ -122,7 +122,11 @@ public final class GamePanel extends JPanel {
         if (state.wasSpotted() && !state.isFinished()) {
             drawAlarmVignette(g);
         }
-        if (state.hasEscaped()) {
+        if (state.isCaught()) {
+            drawEndOverlay(g, "CAUGHT", Palette.DANGER,
+                    "a guard reached you on turn " + state.turnsTaken()
+                            + "  ·  U to take the move back, R to restart");
+        } else if (state.hasEscaped()) {
             drawEndOverlay(g, "ESCAPED", Palette.EXIT_OPEN,
                     state.turnsTaken() + " turns  ·  " + sightingsLine() + "  ·  R to replay");
         } else if (state.hasFailed()) {
@@ -289,8 +293,10 @@ public final class GamePanel extends JPanel {
             }
             int strength = dangerStrength(guard.mode());
             for (Position watched : guard.watchedTiles(state.map())) {
-                if (!state.fog().isVisible(watched)
-                        || state.map().tileAt(watched) == TileType.WALL) {
+                // Walls in the sightline are reddened too. Skipping them left
+                // holes in the danger zone, so the watched area read as a
+                // scatter of tiles rather than one region to stay out of.
+                if (!state.fog().isVisible(watched)) {
                     continue;
                 }
                 Rectangle2D bounds = tileBounds(watched);

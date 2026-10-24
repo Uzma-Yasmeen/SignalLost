@@ -50,6 +50,7 @@ public final class GameState {
     int sightings;
     boolean spotted;
     boolean failed;
+    boolean caught;
 
     /** A level with no guards, which is how most rule tests are set up. */
     public GameState(GameMap map, int sightRadius) {
@@ -254,8 +255,19 @@ public final class GameState {
         return failed;
     }
 
+    /**
+     * True when a guard ended the turn standing on the player.
+     *
+     * <p>Being seen starts a chase; being reached ends the run. Without this,
+     * a hunter could walk onto the player and simply stay there, which made the
+     * whole stealth layer decorative: there was no reason not to be seen.
+     */
+    public boolean isCaught() {
+        return caught;
+    }
+
     /** Escaped or out of time: either way, no more moves are accepted. */
     public boolean isFinished() {
-        return escaped || failed;
+        return escaped || failed || caught;
     }
 }

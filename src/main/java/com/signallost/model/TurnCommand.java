@@ -28,6 +28,7 @@ final class TurnCommand implements Command {
     private int previousSightings;
     private boolean previousSpotted;
     private boolean previousFailed;
+    private boolean previousCaught;
 
     /** The alarm raised this turn, if the player was seen. */
     private Command alarmAction;
@@ -42,6 +43,7 @@ final class TurnCommand implements Command {
         previousSightings = state.sightings;
         previousSpotted = state.spotted;
         previousFailed = state.failed;
+        previousCaught = state.caught;
 
         playerAction.execute();
 
@@ -71,10 +73,19 @@ final class TurnCommand implements Command {
             state.spotted = false;
             return;
         }
-        state.spotted = state.isPlayerWatched();
+        // A guard standing on the player has caught them. Contact is contact:
+        // a patroller that blunders into you is as final as a hunter that ran
+        // you down, and a rule with no exceptions is one a player can learn.
+        state.caught = state.guards().stream()
+                .anyMatch(guard -> guard.position().equals(state.player));
+
+        state.spotted = state.caught || state.isPlayerWatched();
         if (state.spotted) {
             state.sightings++;
-            // Being seen is reported, and the hunters answer it.
+        }
+        // Raising the alarm once you are already caught would be shouting for
+        // help that has arrived.
+        if (state.spotted && !state.caught) {
             alarmAction = new AlarmCommand(state.guards(), state.player());
             alarmAction.execute();
         }
@@ -95,6 +106,7 @@ final class TurnCommand implements Command {
         state.sightings = previousSightings;
         state.spotted = previousSpotted;
         state.failed = previousFailed;
+        state.caught = previousCaught;
     }
 
     /** The HUD shows the player's half of the turn; the guards are implied. */
