@@ -207,42 +207,22 @@ public final class GamePanel extends JPanel {
     }
 
     private void drawKey(Graphics2D g, Rectangle2D bounds, boolean lit, double brightness) {
-        Color colour = lit ? Palette.shade(Palette.KEY, brightness)
-                : Palette.shade(Palette.KEY, 0.4);
         if (lit) {
             paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), TILE * 0.95,
                     Palette.KEY, (int) (110 * brightness));
         }
-        // A diamond, so the key never reads as just another round tile marker.
-        double size = TILE * 0.3;
-        Path2D diamond = new Path2D.Double();
-        diamond.moveTo(bounds.getCenterX(), bounds.getCenterY() - size);
-        diamond.lineTo(bounds.getCenterX() + size, bounds.getCenterY());
-        diamond.lineTo(bounds.getCenterX(), bounds.getCenterY() + size);
-        diamond.lineTo(bounds.getCenterX() - size, bounds.getCenterY());
-        diamond.closePath();
-        g.setColor(colour);
-        g.fill(diamond);
+        ObjectSprite.paintKey(g, bounds.getCenterX(), bounds.getCenterY(),
+                TILE * 0.8, lit ? brightness : 0.45);
     }
 
     private void drawExit(Graphics2D g, Rectangle2D bounds, boolean lit, double brightness) {
-        boolean open = state.hasKey();
-        Color base = open ? Palette.EXIT_OPEN : Palette.EXIT_LOCKED;
-        Color colour = lit ? Palette.shade(base, brightness) : Palette.shade(base, 0.45);
-
+        boolean open = state.hasAllKeys();
         if (lit && open) {
             paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), TILE * 1.1,
                     Palette.EXIT_OPEN, (int) (120 * brightness));
         }
-        double inset = TILE * 0.22;
-        RoundRectangle2D door = new RoundRectangle2D.Double(
-                bounds.getX() + inset, bounds.getY() + inset,
-                bounds.getWidth() - inset * 2, bounds.getHeight() - inset * 2, 4, 4);
-        g.setColor(Palette.withAlpha(colour, open ? 80 : 50));
-        g.fill(door);
-        g.setColor(colour);
-        g.setStroke(new BasicStroke(2f));
-        g.draw(door);
+        ObjectSprite.paintExit(g, bounds.getCenterX(), bounds.getCenterY(),
+                TILE * 0.85, open, lit ? brightness : 0.45);
     }
 
     // ------------------------------------------------------------------ hint

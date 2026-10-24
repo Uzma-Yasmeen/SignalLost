@@ -18,7 +18,7 @@ final class MoveCommand implements Command {
     // The snapshot taken at execute() time.
     private Position previousPosition;
     private int previousTurns;
-    private boolean previousHasKey;
+    private int previousKeysHeld;
     private boolean previousEscaped;
 
     /** The tile the move consumed, so it can be put back; null when none was. */
@@ -34,7 +34,7 @@ final class MoveCommand implements Command {
     public void execute() {
         previousPosition = state.player;
         previousTurns = state.turnsTaken;
-        previousHasKey = state.hasKey;
+        previousKeysHeld = state.keysHeld;
         previousEscaped = state.escaped;
         consumedTile = null;
 
@@ -43,10 +43,10 @@ final class MoveCommand implements Command {
 
         if (state.map().tileAt(destination) == TileType.KEY) {
             consumedTile = TileType.KEY;
-            state.hasKey = true;
+            state.keysHeld++;
             state.map().setTileAt(destination, TileType.FLOOR);
         }
-        if (state.hasKey && destination.equals(state.exit())) {
+        if (state.hasAllKeys() && destination.equals(state.exit())) {
             state.escaped = true;
         }
         state.fog().update(destination);
@@ -59,7 +59,7 @@ final class MoveCommand implements Command {
         }
         state.player = previousPosition;
         state.turnsTaken = previousTurns;
-        state.hasKey = previousHasKey;
+        state.keysHeld = previousKeysHeld;
         state.escaped = previousEscaped;
 
         // Recompute sight from where the player now stands. The explored set

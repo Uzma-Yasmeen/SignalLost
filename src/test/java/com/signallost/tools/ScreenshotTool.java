@@ -72,6 +72,10 @@ public final class ScreenshotTool {
                 capture(outputDir.resolve("03-spotted.png"), Critter.FOX, false,
                         GameState::wasSpotted);
 
+                // Run straight at the hunter until it catches up.
+                capture(outputDir.resolve("06-caught.png"), Critter.PANDA, false,
+                        GameState::isCaught);
+
                 // The suggested route, dodging the guards' sight.
                 captureWithHint(outputDir.resolve("04-hint.png"), Critter.BUNNY,
                         state -> state.turnsTaken() >= 11);

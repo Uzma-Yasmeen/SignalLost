@@ -94,9 +94,9 @@ public final class HudBar extends JPanel {
             x = drawChip(g, x, "UNDO " + state.undoDepth(), Palette.ACCENT, Glyph.DOT);
         }
         x = drawChip(g, x,
-                state.hasKey() ? "KEY HELD" : "KEY MISSING",
-                state.hasKey() ? Palette.KEY : Palette.TEXT_DIM,
-                state.hasKey() ? Glyph.DIAMOND : Glyph.DOT);
+                "KEYS " + state.keysHeld() + "/" + state.keysRequired(),
+                state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY,
+                Glyph.DIAMOND);
         drawTurnCounter(g, x);
     }
 

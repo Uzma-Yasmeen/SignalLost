@@ -9,6 +9,9 @@ import com.signallost.pathfinding.AStarPathfinder;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,24 +34,27 @@ class LevelIntegrityTest {
     /** Every level the game ships. Add new ones here. */
     private static final String[] SHIPPED_LEVELS = {"level1", "level2"};
 
-    @ParameterizedTest(name = "{0} can be finished: start to key to exit")
+    @ParameterizedTest(name = "{0} can be finished: every key, then the exit")
     @ValueSource(strings = {"level1", "level2"})
     void levelIsCompletable(String name) {
         Level level = LevelLoader.loadFromResource(name);
         GameMap map = level.map();
 
         Position start = map.findFirst(TileType.START);
-        Position key = map.findFirst(TileType.KEY);
         Position exit = map.findFirst(TileType.EXIT);
+        List<Position> keys = map.findAll(TileType.KEY);
 
         assertNotNull(start, name + " has no start tile");
-        assertNotNull(key, name + " has no key tile");
         assertNotNull(exit, name + " has no exit tile");
+        assertFalse(keys.isEmpty(), name + " has no keys, so the exit can never open");
 
-        assertFalse(AStarPathfinder.findPath(map, start, key).isEmpty(),
-                name + ": the key cannot be reached from the start");
-        assertFalse(AStarPathfinder.findPath(map, key, exit).isEmpty(),
-                name + ": the exit cannot be reached from the key");
+        // The exit needs every key, so every one of them has to be reachable.
+        for (Position key : keys) {
+            assertFalse(AStarPathfinder.findPath(map, start, key).isEmpty(),
+                    name + ": the key at " + key + " cannot be reached from the start");
+            assertFalse(AStarPathfinder.findPath(map, key, exit).isEmpty(),
+                    name + ": the exit cannot be reached from the key at " + key);
+        }
     }
 
     @ParameterizedTest(name = "{0}: every guard can walk its whole route")
@@ -89,15 +95,40 @@ class LevelIntegrityTest {
         assertFalse(level.guards().isEmpty(), name + " has nobody in it");
     }
 
-    /** Start to key to exit, walked optimally, using the guards' own pathfinder. */
+    /**
+     * Roughly the shortest run: collect every key nearest-first, then leave.
+     *
+     * <p>Picking the nearest key each time is a greedy tour rather than a true
+     * optimum, which is fine here. It can only overestimate, and the check it
+     * feeds asks whether the clock has slack, so erring long is the safe way to
+     * be wrong.
+     */
     static int optimalRoute(Level level) {
         GameMap map = level.map();
-        Position start = map.findFirst(TileType.START);
-        Position key = map.findFirst(TileType.KEY);
-        Position exit = map.findFirst(TileType.EXIT);
+        Position at = map.findFirst(TileType.START);
+        List<Position> remaining = new ArrayList<>(map.findAll(TileType.KEY));
+        int steps = 0;
 
-        return AStarPathfinder.findPath(map, start, key).size() - 1
-                + AStarPathfinder.findPath(map, key, exit).size() - 1;
+        while (!remaining.isEmpty()) {
+            Position nearest = null;
+            int best = Integer.MAX_VALUE;
+            for (Position key : remaining) {
+                int distance = AStarPathfinder.findPath(map, at, key).size() - 1;
+                if (distance >= 0 && distance < best) {
+                    best = distance;
+                    nearest = key;
+                }
+            }
+            // Unreachable keys are the completability test's job to report;
+            // bailing here keeps this from dying with a null pointer instead.
+            if (nearest == null) {
+                return Integer.MAX_VALUE;
+            }
+            steps += best;
+            at = nearest;
+            remaining.remove(nearest);
+        }
+        return steps + AStarPathfinder.findPath(map, at, map.findFirst(TileType.EXIT)).size() - 1;
     }
 
     static String[] shippedLevels() {

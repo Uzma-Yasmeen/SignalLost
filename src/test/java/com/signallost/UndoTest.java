@@ -56,12 +56,12 @@ class UndoTest {
         Position keyTile = new Position(1, 2);
 
         state.movePlayer(Direction.RIGHT);
-        assertTrue(state.hasKey());
+        assertTrue(state.hasAllKeys());
         assertEquals(TileType.FLOOR, state.map().tileAt(keyTile));
 
         state.undoLastMove();
 
-        assertFalse(state.hasKey());
+        assertFalse(state.hasAllKeys());
         assertEquals(TileType.KEY, state.map().tileAt(keyTile));
     }
 

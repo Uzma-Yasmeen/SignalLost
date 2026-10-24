@@ -56,7 +56,7 @@ class HintTest {
         for (int i = 0; i < 5; i++) {
             state.movePlayer(Direction.RIGHT);
         }
-        assertTrue(state.hasKey());
+        assertTrue(state.hasAllKeys());
 
         List<Position> towardsExit = state.hintRoute(20);
         assertEquals(exit, towardsExit.get(towardsExit.size() - 1),

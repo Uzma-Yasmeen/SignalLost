@@ -76,7 +76,7 @@ class GameStateTest {
         state.movePlayer(Direction.RIGHT);
 
         assertEquals(state.exit(), state.player());
-        assertFalse(state.hasKey());
+        assertFalse(state.hasAllKeys());
         assertFalse(state.hasEscaped());
     }
 
@@ -86,7 +86,7 @@ class GameStateTest {
         GameState state = new GameState(tinyLevel(), 3);
 
         state.movePlayer(Direction.RIGHT);
-        assertTrue(state.hasKey(), "stepping on the key picks it up");
+        assertTrue(state.hasAllKeys(), "stepping on the key picks it up");
 
         state.movePlayer(Direction.RIGHT);
 

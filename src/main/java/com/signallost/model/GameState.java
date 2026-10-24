@@ -40,12 +40,13 @@ public final class GameState {
     private final Position exit;
     private final List<Guard> guards;
     private final int turnLimit;
+    private final int keysRequired;
     private final Deque<Command> history = new ArrayDeque<>();
 
     // Written only by commands in this package; read by everyone through getters.
     Position player;
     int turnsTaken;
-    boolean hasKey;
+    int keysHeld;
     boolean escaped;
     int sightings;
     boolean spotted;
@@ -65,6 +66,7 @@ public final class GameState {
         this.map = map;
         this.guards = List.copyOf(guards);
         this.turnLimit = Math.max(NO_TURN_LIMIT, turnLimit);
+        this.keysRequired = map.count(TileType.KEY);
         Position start = map.findFirst(TileType.START);
         if (start == null) {
             throw new IllegalArgumentException("Level has no start tile '@'");
@@ -150,7 +152,7 @@ public final class GameState {
         if (escaped || maxSteps <= 0) {
             return List.of();
         }
-        Position goal = hasKey ? exit : map.findFirst(TileType.KEY);
+        Position goal = hasAllKeys() ? exit : nearestKey();
         if (goal == null) {
             return List.of();
         }
@@ -167,6 +169,25 @@ public final class GameState {
         return path.size() <= 1
                 ? List.of()
                 : List.copyOf(path.subList(1, Math.min(path.size(), maxSteps + 1)));
+    }
+
+    /**
+     * The uncollected key closest to the player, by straight-line step count.
+     *
+     * <p>Nearest rather than first-in-the-file, so a hint sends the player to
+     * the key in front of them rather than back across the level.
+     */
+    private Position nearestKey() {
+        Position nearest = null;
+        int best = Integer.MAX_VALUE;
+        for (Position tile : map.findAll(TileType.KEY)) {
+            int distance = tile.manhattanDistanceTo(player);
+            if (distance < best) {
+                best = distance;
+                nearest = tile;
+            }
+        }
+        return nearest;
     }
 
     public List<Guard> guards() {
@@ -209,8 +230,19 @@ public final class GameState {
         return turnsTaken;
     }
 
-    public boolean hasKey() {
-        return hasKey;
+    /** How many keys the player is carrying. */
+    public int keysHeld() {
+        return keysHeld;
+    }
+
+    /** How many the level started with, and therefore how many the exit wants. */
+    public int keysRequired() {
+        return keysRequired;
+    }
+
+    /** The exit only opens once every key on the level has been collected. */
+    public boolean hasAllKeys() {
+        return keysHeld >= keysRequired;
     }
 
     public boolean hasEscaped() {

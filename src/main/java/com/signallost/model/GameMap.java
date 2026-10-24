@@ -84,6 +84,24 @@ public final class GameMap {
         return result;
     }
 
+    /** Every tile of the given type, in reading order. */
+    public List<Position> findAll(TileType type) {
+        List<Position> found = new ArrayList<>();
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                if (tiles[row][col] == type) {
+                    found.add(new Position(row, col));
+                }
+            }
+        }
+        return found;
+    }
+
+    /** How many tiles of the given type the map has. */
+    public int count(TileType type) {
+        return findAll(type).size();
+    }
+
     /** The first tile of the given type, or null when the map has none. */
     public Position findFirst(TileType type) {
         for (int row = 0; row < rows; row++) {

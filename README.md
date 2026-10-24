@@ -52,9 +52,9 @@ Tests:
 mvn -q test
 ```
 
-91 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
-behaviour, the alarm, hints, spotting, the turn limit, level integrity and the
-window's select-to-level wiring.
+103 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+behaviour, the alarm, capture, keys, hints, spotting, the turn limit, level
+integrity and the window's select-to-level wiring.
 
 ## How the code is laid out
 
@@ -165,6 +165,16 @@ the dumbest guard in the facility is the most dangerous thing to walk past.
 A hunter that can already see you ignores the report, because its own eyes are
 better information.
 
+**Being reached is the end of the run.** A guard that ends its turn standing on
+the player has caught them. Contact is contact: a patroller that blunders into
+you is as final as a hunter that ran you down, because a rule with no exceptions
+is one a player can learn. Getting out still beats it, so reaching the exit as a
+guard closes in is an escape, not a capture.
+
+That rule is what makes the rest of the game mean anything. Without it a hunter
+could run you down, stand on top of you, and you would simply walk away — the
+stealth layer was decoration, and the only way to lose was the clock.
+
 Being seen is **not** the end of the run. It is counted, `U` takes the move back,
 and undo calls the alarm off too — the facility should not stay alerted about a
 sighting that, as far as the game is concerned, never happened. That makes this a
@@ -186,12 +196,27 @@ cost extra, so the hint prefers a longer way round over a short way into trouble
 It is deliberately omniscient, accounting for guards you cannot see, and it only
 shows the next seven steps. It points, it does not solve.
 
+## Keys
+
+The exit needs **every** key on the level, not one. Level 1 has three, in three
+different corners.
+
+One key made a level a straight line: find it, walk out, and after two attempts
+you knew the route. Three force the player across the map and, more to the
+point, back again past guards who are now looking for them. `GameState` counts
+the keys on the map at load, so a level decides how many it wants simply by how
+many it draws.
+
+The hint points at the **nearest** key still on the floor, so it sends you to the
+one in front of you rather than back across the level.
+
 ## Levels
 
 **Level 1** is short and teaches the rules: you meet a patroller within a few
-turns and a hunter soon after. **Level 2** is the large facility, about 130 turns
-at its fastest. Level 1 was built after playing level 2 first and finding it had
-no guard anywhere near the start, so nothing happened for the first fifty turns.
+turns and a hunter soon after, and it holds three keys inside 120 turns.
+**Level 2** is the large facility, about 130 turns at its fastest. Level 1 was
+built after playing level 2 first and finding it had no guard anywhere near the
+start, so nothing happened for the first fifty turns.
 
 A level file is the grid, then `---`, then one guard per line:
 
@@ -230,8 +255,8 @@ sealed in a room that had no door.
 
 ## Character artwork
 
-The six animals and the guards are **16×16 pixel art, written as text in the
-source**. Each sprite is a block of characters where every letter names a colour:
+The six animals, the guards, the keys and the exit are all **16×16 pixel art,
+written as text in the source**. Each sprite is a block of characters where every letter names a colour:
 
 ```
 "..O..........O.."
@@ -268,6 +293,7 @@ hand, are in [docs/screens](docs/screens):
 - `03-spotted.png` — caught, with the alarm up and a hunter answering it
 - `04-hint.png` — the suggested route, routing around guard sight
 - `05-dev-reveal.png` — the whole map with every guard, used to check the logic
+- `06-caught.png` — a guard reached the player, and the run is over
 
 The walks are driven by A\*, not hard-coded key presses, so they keep working
 when the level is redrawn. Regenerate with:
