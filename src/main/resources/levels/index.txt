@@ -4,4 +4,10 @@
 level1 0
 level2 1
 level3 3
-level4 6
+level4 5
+level5 8
+level6 11
+level7 14
+level8 17
+level9 20
+level10 23

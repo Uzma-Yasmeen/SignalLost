@@ -14,6 +14,18 @@ Built step by step.
   limit.
 - **Step 5 — next.** A sentinel guard with a rotating vision cone.
 
+## The screens
+
+```
+home  ->  name  ->  character  ->  level select  ->  the level
+                                        ^                |
+                                        +----- Esc ------+
+```
+
+Esc steps back one screen at a time, so nowhere is a dead end. The home screen
+greets a returning player by name with their star count, because a game that
+opens straight into a text box tells you nothing about itself.
+
 ## Running it
 
 On Windows, double-click `run.bat`, or from a terminal:
@@ -53,7 +65,7 @@ Tests:
 mvn -q test
 ```
 
-153 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+184 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
 
@@ -323,23 +335,27 @@ level2 1
 
 ## Levels
 
-Four levels ship, numbered in play order, and each is a **different shape**:
+Ten levels ship, numbered in play order, each a different shape:
 
-| | Shape | Why it plays differently |
-| --- | --- | --- |
-| 1 | lattice of corridors and pillars | always a way round; teaches the rules |
-| 2 | four rooms joined by narrow doors | open space to cross, chokepoints to time |
-| 3 | concentric rings | one key in the middle, two ways in, guards circling |
-| 4 | the large facility | long halls and dead ends; the hardest |
+| | Shape | | | Shape |
+| --- | --- | --- | --- | --- |
+| 1 | lattice of corridors and pillars | | 6 | open field, sparse pillars |
+| 2 | four rooms joined by narrow doors | | 7 | nine rooms in a grid |
+| 3 | concentric rings | | 8 | twin halls, three crossings |
+| 4 | a hall of pillar blocks | | 9 | nested vault, four rings deep |
+| 5 | stacked chambers, offset doors | | 10 | the large facility |
 
-They cost 0, 1, 3 and 6 stars to open, so the hardest comes last.
+They cost 0, 1, 3, 5, 8, 11, 14, 17, 20 and 23 stars to open, out of thirty.
 
 The first three were all lattices to begin with, because a lattice trivially
 passes the fairness check — there is cover everywhere by construction. Safe, and
-three levels that played identically. Varying the shape meant levels that could
-genuinely be wrong, which is what the checks are for: the ring level shipped with
-its centre key sealed behind a ring that had no doors, twice, and both times the
-build caught it before anybody played it.
+three levels that played identically.
+
+Varying the shape meant levels that could genuinely be wrong, which is what the
+checks are for. Between them they caught the ring level with its centre sealed
+behind a doorless ring, then with its middle ring cut off from the outer one,
+and the chamber level with its bottom room split in two and the only door on the
+wrong side of the split. None of those reached a player.
 
 The file names *are* the play order, and the select screen numbers its boxes by
 position rather than by anything parsed out of a name. Those two drifted apart

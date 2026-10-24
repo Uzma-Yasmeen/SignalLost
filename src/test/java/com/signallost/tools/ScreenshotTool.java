@@ -14,6 +14,7 @@ import com.signallost.progress.PlayerProfile;
 import com.signallost.ui.CharacterSelectPanel;
 import com.signallost.ui.LevelSelectPanel;
 import com.signallost.ui.NamePanel;
+import com.signallost.ui.TitlePanel;
 import com.signallost.ui.Critter;
 import com.signallost.ui.FooterBar;
 import com.signallost.ui.GamePanel;
@@ -66,6 +67,8 @@ public final class ScreenshotTool {
                 captureLayout(outputDir.resolve("10-level2-rooms.png"), "level2", Critter.FOX);
                 captureLayout(outputDir.resolve("11-level3-rings.png"), "level3", Critter.FROG);
                 captureLayout(outputDir.resolve("12-level4-facility.png"), "level4", Critter.PANDA);
+
+                captureTitle(outputDir.resolve("13-title.png"));
 
                 // Who is playing, and what they have done so far.
                 captureName(outputDir.resolve("08-name.png"));
@@ -146,6 +149,12 @@ public final class ScreenshotTool {
         root.add(new GamePanel(state, critter), BorderLayout.CENTER);
         root.add(new FooterBar(), BorderLayout.SOUTH);
         write(target, root);
+    }
+
+    private static void captureTitle(Path target) throws IOException {
+        PlayerProfile profile = new PlayerProfile("Uzma");
+        profile.record("level1", new Score(2, 61, 69, 4, true));
+        write(target, new TitlePanel(profile, LevelCatalog.load().size()));
     }
 
     private static void captureName(Path target) throws IOException {

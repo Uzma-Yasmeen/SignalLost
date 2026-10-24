@@ -75,6 +75,37 @@ class KeyBindingTest {
     }
 
     @Test
+    @DisplayName("Esc steps back one screen at a time rather than trapping the player")
+    void escapeStepsBack(@TempDir Path folder) throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless(), "needs a display");
+
+        ProgressStore store = new ProgressStore(folder.resolve("progress.properties"));
+        AtomicReference<GameFrame> holder = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> holder.set(new GameFrame("level1", store)));
+        GameFrame frame = holder.get();
+
+        try {
+            JPanel root = (JPanel) frame.getContentPane();
+            press(root, "ENTER");
+            press(root, "S");
+            press(root, "ENTER");
+            press(root, "ENTER");
+            assertNotNull(showing(root, LevelSelectPanel.class));
+
+            press(root, "ESCAPE");
+            assertNotNull(showing(root, CharacterSelectPanel.class), "back to the roster");
+
+            press(root, "ESCAPE");
+            assertNotNull(showing(root, NamePanel.class), "back to the name");
+
+            press(root, "ESCAPE");
+            assertNotNull(showing(root, TitlePanel.class), "back to the title");
+        } finally {
+            SwingUtilities.invokeAndWait(frame::dispose);
+        }
+    }
+
+    @Test
     @DisplayName("Every letter and arrow is bound to something")
     void everyPlayKeyIsBound(@TempDir Path folder) throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless(), "needs a display");
@@ -93,7 +124,7 @@ class KeyBindingTest {
     }
 
     @Test
-    @DisplayName("The screens arrive in order: name, levels, roster, then the level")
+    @DisplayName("The screens arrive in order: title, name, roster, levels, then the level")
     void screensArriveInOrder(@TempDir Path folder) throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless(), "needs a display");
 
@@ -105,16 +136,19 @@ class KeyBindingTest {
         try {
             JPanel root = (JPanel) frame.getContentPane();
 
+            assertNotNull(showing(root, TitlePanel.class), "should open on the title");
+
+            press(root, "ENTER");
             assertNotNull(showing(root, NamePanel.class), "should ask who is playing");
 
             press(root, "S");
             press(root, "A");
             press(root, "M");
             press(root, "ENTER");
-            assertNotNull(showing(root, LevelSelectPanel.class), "should reach the level select");
+            assertNotNull(showing(root, CharacterSelectPanel.class), "should reach the roster");
 
             press(root, "ENTER");
-            assertNotNull(showing(root, CharacterSelectPanel.class), "should reach the roster");
+            assertNotNull(showing(root, LevelSelectPanel.class), "should reach the level select");
 
             press(root, "ENTER");
             assertNotNull(showing(root, GamePanel.class), "should start the level");
@@ -158,12 +192,13 @@ class KeyBindingTest {
         GameFrame frame = holder.get();
 
         JPanel root = (JPanel) frame.getContentPane();
+        press(root, "ENTER");   // title
         press(root, "S");
         press(root, "A");
         press(root, "M");
-        press(root, "ENTER");
-        press(root, "ENTER");
-        press(root, "ENTER");
+        press(root, "ENTER");   // name
+        press(root, "ENTER");   // character
+        press(root, "ENTER");   // level
         assertNotNull(frame.gameState(), "the level should be running");
         return frame;
     }

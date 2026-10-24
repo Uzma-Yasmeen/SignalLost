@@ -26,9 +26,12 @@ import java.util.Set;
  * The game window, and the route between its screens:
  *
  * <pre>
- *   name  -&gt;  level select  -&gt;  character select  -&gt;  the level
- *               ^                                        |
- *               +--------------- escape, or Esc ---------+
+ *   home  -&gt;  name  -&gt;  character  -&gt;  level select  -&gt;  the level
+ *                                           ^                 |
+ *                                           +---- Esc --------+
+ *
+ * <p>Esc steps back one screen at a time, so there is always a way out of
+ * wherever the player is.
  * </pre>
  *
  * <p>Input goes through Swing's {@code InputMap}/{@code ActionMap} rather than a
@@ -38,6 +41,7 @@ public final class GameFrame extends JFrame {
 
     private static final int SIGHT_RADIUS = 5;
 
+    private static final String HOME_CARD = "home";
     private static final String NAME_CARD = "name";
     private static final String LEVELS_CARD = "levels";
     private static final String SELECT_CARD = "select";
@@ -51,6 +55,7 @@ public final class GameFrame extends JFrame {
     private final ProgressStore store;
     private PlayerProfile profile;
 
+    private TitlePanel titlePanel;
     private NamePanel namePanel;
     private LevelSelectPanel levelSelectPanel;
     private CharacterSelectPanel selectPanel;
@@ -62,7 +67,7 @@ public final class GameFrame extends JFrame {
     private HudBar hud;
 
     /** Which screen is showing, since every key binding needs to know. */
-    private String screen = NAME_CARD;
+    private String screen = HOME_CARD;
 
     /** Letters already given a job, so the catch-all pass skips them. */
     private final Set<Character> boundLetters = new HashSet<>();
@@ -86,11 +91,7 @@ public final class GameFrame extends JFrame {
         gameScreen.setBackground(Palette.BACKDROP);
         setContentPane(root);
 
-        if (profile == null) {
-            showNameEntry();
-        } else {
-            showLevelSelect();
-        }
+        showHome();
         bindKeys();
 
         pack();
@@ -107,6 +108,12 @@ public final class GameFrame extends JFrame {
 
     // --------------------------------------------------------------- screens
 
+    private void showHome() {
+        screen = HOME_CARD;
+        titlePanel = new TitlePanel(profile, catalog.size());
+        swapIn(titlePanel, HOME_CARD);
+    }
+
     private void showNameEntry() {
         screen = NAME_CARD;
         namePanel = new NamePanel(profile == null ? null : profile.name(), chosenName -> {
@@ -116,29 +123,31 @@ public final class GameFrame extends JFrame {
                 profile.rename(chosenName);
             }
             store.save(profile);
-            showLevelSelect();
+            showCharacterSelect();
         });
         swapIn(namePanel, NAME_CARD);
+    }
+
+    private void showCharacterSelect() {
+        screen = SELECT_CARD;
+        selectPanel = new CharacterSelectPanel(critter, chosen -> {
+            critter = chosen;
+            showLevelSelect();
+        });
+        swapIn(selectPanel, SELECT_CARD);
     }
 
     private void showLevelSelect() {
         screen = LEVELS_CARD;
         levelSelectPanel = new LevelSelectPanel(catalog, profile, entry -> {
             currentLevel = entry;
-            showCharacterSelect();
+            startRun();
         });
         swapIn(levelSelectPanel, LEVELS_CARD);
     }
 
-    private void showCharacterSelect() {
-        screen = SELECT_CARD;
-        selectPanel = new CharacterSelectPanel(critter, this::startRun);
-        swapIn(selectPanel, SELECT_CARD);
-    }
-
     /** Builds a fresh run of the chosen level and shows it. */
-    private void startRun(Critter chosen) {
-        critter = chosen;
+    private void startRun() {
         screen = GAME_CARD;
         loadLevel();
 
@@ -253,6 +262,11 @@ public final class GameFrame extends JFrame {
                 showNameEntry();
             }
         });
+        bindLetter('P', () -> {
+            if (onLevelSelect()) {
+                showCharacterSelect();
+            }
+        });
 
         // The rest of the alphabet exists only so a name can be typed with it.
         for (char letter = 'A'; letter <= 'Z'; letter++) {
@@ -299,8 +313,8 @@ public final class GameFrame extends JFrame {
         switch (screen) {
             case LEVELS_CARD -> levelSelectPanel.moveSelection(columnStep, rowStep);
             case SELECT_CARD -> selectPanel.moveSelection(columnStep, rowStep);
-            case NAME_CARD -> {
-                // Nothing to steer while typing a name.
+            case NAME_CARD, HOME_CARD -> {
+                // Nothing to steer while typing a name or waiting on the title.
             }
             default -> {
                 if (state.movePlayer(direction)) {
@@ -324,6 +338,7 @@ public final class GameFrame extends JFrame {
 
     private void onSpace() {
         switch (screen) {
+            case HOME_CARD -> showNameEntry();
             case NAME_CARD -> namePanel.type(' ');
             case LEVELS_CARD -> levelSelectPanel.confirmSelection();
             case SELECT_CARD -> selectPanel.confirmSelection();
@@ -343,6 +358,7 @@ public final class GameFrame extends JFrame {
 
     private void onEnter() {
         switch (screen) {
+            case HOME_CARD -> showNameEntry();
             case NAME_CARD -> namePanel.confirm();
             case LEVELS_CARD -> levelSelectPanel.confirmSelection();
             case SELECT_CARD -> selectPanel.confirmSelection();
@@ -354,12 +370,15 @@ public final class GameFrame extends JFrame {
         }
     }
 
+    /** Esc steps back one screen, so nowhere is a dead end. */
     private void onEscape() {
         switch (screen) {
-            case SELECT_CARD -> showLevelSelect();
+            case NAME_CARD -> showHome();
+            case SELECT_CARD -> showNameEntry();
+            case LEVELS_CARD -> showCharacterSelect();
             case GAME_CARD -> recordAndReturnToLevels();
             default -> {
-                // Name and level select have nowhere further back to go.
+                // The home screen is the back of the queue.
             }
         }
     }

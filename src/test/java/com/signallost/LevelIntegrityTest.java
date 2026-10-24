@@ -33,10 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LevelIntegrityTest {
 
     /** Every level the game ships. Add new ones here. */
-    private static final String[] SHIPPED_LEVELS = {"level1", "level2", "level3", "level4"};
+    private static final String[] SHIPPED_LEVELS = {"level1", "level2", "level3", "level4", "level5", "level6", "level7", "level8", "level9", "level10"};
 
     @ParameterizedTest(name = "{0} can be finished: every key, then the exit")
-    @ValueSource(strings = {"level1", "level2", "level3", "level4"})
+    @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5", "level6", "level7", "level8", "level9", "level10"})
     void levelIsCompletable(String name) {
         Level level = LevelLoader.loadFromResource(name);
         GameMap map = level.map();
@@ -59,7 +59,7 @@ class LevelIntegrityTest {
     }
 
     @ParameterizedTest(name = "{0}: every guard can walk its whole route")
-    @ValueSource(strings = {"level1", "level2", "level3", "level4"})
+    @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5", "level6", "level7", "level8", "level9", "level10"})
     void everyGuardRouteIsWalkable(String name) {
         Level level = LevelLoader.loadFromResource(name);
         GameMap map = level.map();
@@ -76,7 +76,7 @@ class LevelIntegrityTest {
     }
 
     @ParameterizedTest(name = "{0}: the turn limit leaves room to actually play")
-    @ValueSource(strings = {"level1", "level2", "level3", "level4"})
+    @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5", "level6", "level7", "level8", "level9", "level10"})
     void turnLimitIsWorkable(String name) {
         Level level = LevelLoader.loadFromResource(name);
 
@@ -89,7 +89,7 @@ class LevelIntegrityTest {
     }
 
     @ParameterizedTest(name = "{0}: has a guard the player will actually meet")
-    @ValueSource(strings = {"level1", "level2", "level3", "level4"})
+    @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5", "level6", "level7", "level8", "level9", "level10"})
     void levelHasGuards(String name) {
         Level level = LevelLoader.loadFromResource(name);
 
