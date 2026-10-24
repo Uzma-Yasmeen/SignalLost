@@ -52,7 +52,7 @@ Tests:
 mvn -q test
 ```
 
-126 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+140 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
 
@@ -239,6 +239,14 @@ can read which one they missed and go back for it. That is the whole point of
 the sightings counter: it used to be a number that rose and never paid off,
 which teaches a player to ignore it.
 
+**The two bonus stars pull against each other, and that is a trap.** Avoiding a
+guard costs turns, so a par set from the guard-free route can make them mutually
+exclusive. On level 1 the fastest escape took 38 turns, the fastest *unseen*
+escape took 56, and par was 51 — three stars was unreachable no matter how well
+anybody played, and the only way to discover that was to keep failing at it.
+`StarRatingAchievableTest` searches for the shortest unseen escape and insists
+par leaves room for it. Par is now 69 against a 56-turn minimum.
+
 **Par is worked out from the level itself**, not typed into the level file:
 `RouteMetrics.shortestClearRoute` walks start to every key to exit ignoring
 guards, and par is that plus 40%. It cannot drift out of date when the walls
@@ -272,6 +280,45 @@ many it draws.
 
 The hint points at the **nearest** key still on the floor, so it sends you to the
 one in front of you rather than back across the level.
+
+## Profile and progress
+
+The game asks who is playing, then keeps their best run on every level in
+`~/.signal-lost/progress.properties` — a plain text file, no library, readable
+and deletable by hand:
+
+```
+player.name=Uzma
+level1.stars=3
+level1.turns=58
+level1.sightings=0
+```
+
+Only an improvement is kept. More stars always wins; between runs with the same
+stars, fewer turns wins, then fewer sightings. That matters here more than in
+most games, because the stealth star rewards a slow careful route — without a
+best-of rule, a player chasing it would watch their fast two-star time get
+overwritten by every failed attempt.
+
+Nothing in the store throws at the caller. A profile that cannot be read is a
+fresh profile, and one that cannot be written is a lost high score; neither is
+worth taking the game down for.
+
+## Level select
+
+One box per level, showing the stars earned on it and the best run. A list of
+level names tells a player what exists; a grid of boxes with two of three stars
+filled in tells them what is left to do, which is the only reason to replay a
+level they have already beaten. Levels are locked until the player has enough
+stars across all of them, so stars are a currency rather than decoration.
+
+The levels themselves come from `/levels/index.txt`, so adding one is adding a
+text file and a line, with nothing to recompile:
+
+```
+level1 0
+level2 1
+```
 
 ## Levels
 
@@ -360,6 +407,8 @@ hand, are in [docs/screens](docs/screens):
 - `05-dev-reveal.png` — the whole map with every guard, used to check the logic
 - `06-caught.png` — a hunter reached the player; a life gone, two left
 - `07-escaped.png` — the escape screen, with the rating
+- `08-name.png` — who is playing
+- `09-level-select.png` — the level boxes and the stars on them
 
 The walks are driven by A\*, not hard-coded key presses, so they keep working
 when the level is redrawn. Regenerate with:

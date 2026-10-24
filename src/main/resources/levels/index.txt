@@ -1,0 +1,4 @@
+# The levels, in order: resource name, then stars needed to unlock it.
+# Adding a level means adding its .txt file and one line here.
+level1 0
+level2 1

@@ -57,10 +57,17 @@ public final class GameState {
      * How much longer than the straight-line route still counts as brisk.
      *
      * <p>Par is worked out from the level's own geometry rather than typed into
-     * the level file, so it cannot drift out of date when the walls move. The
-     * slack is because the clear route ignores guards, and a player cannot.
+     * the level file, so it cannot drift out of date when the walls move.
+     *
+     * <p>The slack has to be generous, and the reason is a trap worth spelling
+     * out. The clear route ignores guards; a player avoiding them walks further.
+     * At 1.4 the two bonus stars on level 1 became mutually exclusive: the
+     * fastest escape took 38 turns but the fastest <em>unseen</em> escape took
+     * 56, against a par of 51. Three stars was unreachable no matter how well
+     * anybody played, which is not difficulty, it is a broken promise.
+     * {@code StarRatingAchievableTest} now holds the line.
      */
-    private static final double PAR_SLACK = 1.4;
+    private static final double PAR_SLACK = 1.9;
 
     private final GameMap map;
     private final FogOfWar fog;

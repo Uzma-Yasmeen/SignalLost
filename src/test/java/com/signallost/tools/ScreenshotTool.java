@@ -1,6 +1,7 @@
 package com.signallost.tools;
 
 import com.signallost.level.Level;
+import com.signallost.level.LevelCatalog;
 import com.signallost.level.LevelLoader;
 import com.signallost.model.Direction;
 import com.signallost.model.GameMap;
@@ -8,7 +9,11 @@ import com.signallost.model.GameState;
 import com.signallost.model.Position;
 import com.signallost.model.TileType;
 import com.signallost.pathfinding.AStarPathfinder;
+import com.signallost.model.Score;
+import com.signallost.progress.PlayerProfile;
 import com.signallost.ui.CharacterSelectPanel;
+import com.signallost.ui.LevelSelectPanel;
+import com.signallost.ui.NamePanel;
 import com.signallost.ui.Critter;
 import com.signallost.ui.FooterBar;
 import com.signallost.ui.GamePanel;
@@ -57,6 +62,10 @@ public final class ScreenshotTool {
 
         SwingUtilities.invokeAndWait(() -> {
             try {
+                // Who is playing, and what they have done so far.
+                captureName(outputDir.resolve("08-name.png"));
+                captureLevels(outputDir.resolve("09-level-select.png"));
+
                 // The roster, before a run starts.
                 captureSelect(outputDir.resolve("00-character-select.png"));
 
@@ -116,6 +125,24 @@ public final class ScreenshotTool {
         root.add(new GamePanel(state, critter), BorderLayout.CENTER);
         root.add(new FooterBar(), BorderLayout.SOUTH);
         write(target, root);
+    }
+
+    private static void captureName(Path target) throws IOException {
+        NamePanel panel = new NamePanel("Uzma", chosen -> {
+            // Nothing to start: this render never leaves the screen.
+        });
+        write(target, panel);
+    }
+
+    /** The level grid, with a profile part way through, so the boxes have stars. */
+    private static void captureLevels(Path target) throws IOException {
+        PlayerProfile profile = new PlayerProfile("Uzma");
+        profile.record("level1", new Score(2, 61, 69, 4, true));
+
+        LevelSelectPanel panel = new LevelSelectPanel(LevelCatalog.load(), profile, entry -> {
+            // Nothing to start.
+        });
+        write(target, panel);
     }
 
     private static void captureSelect(Path target) throws IOException {
