@@ -35,9 +35,17 @@ import java.util.List;
  */
 public final class GamePanel extends JPanel {
 
-    // 40 rather than 34 so a 16-pixel-wide sprite lands on a whole
-    // number of screen pixels per art pixel and stays crisp.
-    private static final int TILE = 40;
+    /**
+     * The tile size the game prefers: 40 so a 16-pixel-wide sprite lands on a
+     * whole number of screen pixels per art pixel and stays crisp.
+     */
+    private static final int PREFERRED_TILE = 40;
+
+    /** Below this a sprite stops being legible, so the window shrinks no further. */
+    private static final int MIN_TILE = 18;
+
+    /** Room the window needs beyond the board: HUD, controls and a title bar. */
+    private static final int FURNITURE_HEIGHT = 62 + 46 + 48;
     private static final int GAP = 2;
     private static final int MARGIN = 14;
 
@@ -58,6 +66,17 @@ public final class GamePanel extends JPanel {
     private final Critter critter;
     private final javax.swing.Timer animator;
 
+    /**
+     * How big one tile is drawn, chosen to fit the screen.
+     *
+     * <p>A fixed 40 made the taller levels build a window 767 pixels high,
+     * which does not fit a 768-pixel screen once a taskbar and a title bar have
+     * taken their share. The window opened with its bottom off the display, so
+     * the control strip — the only place the game says what the keys do — was
+     * invisible.
+     */
+    private final int tile;
+
     /** How many steps of the route a hint gives away. */
     private static final int HINT_STEPS = 7;
 
@@ -68,9 +87,10 @@ public final class GamePanel extends JPanel {
         this.state = state;
         this.critter = critter;
         GameMap map = state.map();
+        this.tile = tileSizeFor(map);
         setPreferredSize(new Dimension(
-                Math.max(map.cols() * TILE + MARGIN * 2, MIN_BOARD_WIDTH),
-                map.rows() * TILE + MARGIN * 2));
+                Math.max(map.cols() * tile + MARGIN * 2, MIN_BOARD_WIDTH),
+                map.rows() * tile + MARGIN * 2));
         setBackground(Palette.BACKDROP);
 
         // Only tick when there is artwork to animate: the drawn-in-code
@@ -80,6 +100,41 @@ public final class GamePanel extends JPanel {
             animationFrame++;
             repaint();
         });
+    }
+
+    /**
+     * The largest tile size whose window still fits on this screen.
+     *
+     * <p>Shrinking the board is better than letting the window run off the
+     * bottom: a smaller map is still playable, while controls you cannot see
+     * are not.
+     */
+    private static int tileSizeFor(GameMap map) {
+        java.awt.Rectangle usable = usableScreen();
+        int forHeight = (usable.height - FURNITURE_HEIGHT - MARGIN * 2) / map.rows();
+        int forWidth = (usable.width - MARGIN * 2) / map.cols();
+
+        int fitted = Math.min(forHeight, forWidth);
+        return Math.max(MIN_TILE, Math.min(PREFERRED_TILE, fitted));
+    }
+
+    /** The screen minus whatever the taskbar and friends have taken. */
+    private static java.awt.Rectangle usableScreen() {
+        try {
+            java.awt.GraphicsConfiguration configuration = java.awt.GraphicsEnvironment
+                    .getLocalGraphicsEnvironment()
+                    .getDefaultScreenDevice()
+                    .getDefaultConfiguration();
+            java.awt.Rectangle bounds = configuration.getBounds();
+            java.awt.Insets insets =
+                    java.awt.Toolkit.getDefaultToolkit().getScreenInsets(configuration);
+            return new java.awt.Rectangle(
+                    bounds.width - insets.left - insets.right,
+                    bounds.height - insets.top - insets.bottom);
+        } catch (RuntimeException e) {
+            // Headless or an unusual display: assume something modest.
+            return new java.awt.Rectangle(1280, 720);
+        }
     }
 
     @Override
@@ -199,21 +254,21 @@ public final class GamePanel extends JPanel {
 
     private void drawKey(Graphics2D g, Rectangle2D bounds, boolean lit, double brightness) {
         if (lit) {
-            paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), TILE * 0.95,
+            paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), tile * 0.95,
                     Palette.KEY, (int) (110 * brightness));
         }
         ObjectSprite.paintKey(g, bounds.getCenterX(), bounds.getCenterY(),
-                TILE * 0.8, lit ? brightness : 0.45);
+                tile * 0.8, lit ? brightness : 0.45);
     }
 
     private void drawExit(Graphics2D g, Rectangle2D bounds, boolean lit, double brightness) {
         boolean open = state.hasAllKeys();
         if (lit && open) {
-            paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), TILE * 1.1,
+            paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), tile * 1.1,
                     Palette.EXIT_OPEN, (int) (120 * brightness));
         }
         ObjectSprite.paintExit(g, bounds.getCenterX(), bounds.getCenterY(),
-                TILE * 0.85, open, lit ? brightness : 0.45);
+                tile * 0.85, open, lit ? brightness : 0.45);
     }
 
     // ------------------------------------------------------------------ hint
@@ -239,7 +294,7 @@ public final class GamePanel extends JPanel {
         for (int i = 0; i < route.size(); i++) {
             Rectangle2D bounds = tileBounds(route.get(i));
             double fade = 1.0 - (double) i / route.size();
-            double dot = TILE * (0.13 * fade + 0.05);
+            double dot = tile * (0.13 * fade + 0.05);
 
             g.setColor(Palette.withAlpha(Palette.HINT, (int) (210 * fade)));
             g.fill(new Ellipse2D.Double(
@@ -320,10 +375,10 @@ public final class GamePanel extends JPanel {
         Rectangle2D bounds = tileBounds(guard.position());
         Color colour = modeColour(guard.mode());
 
-        paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), TILE * 1.3, colour,
+        paintGlow(g, bounds.getCenterX(), bounds.getCenterY(), tile * 1.3, colour,
                 guard.mode() == GuardMode.PATROL ? 70 : 140);
         GuardSprite.paint(g, guard.mode(),
-                bounds.getCenterX(), bounds.getCenterY(), TILE * 0.85);
+                bounds.getCenterX(), bounds.getCenterY(), tile * 0.85);
     }
 
     private static Color modeColour(GuardMode mode) {
@@ -339,7 +394,7 @@ public final class GamePanel extends JPanel {
         }
         Rectangle2D bounds = tileBounds(state.player());
         paintGlow(g, bounds.getCenterX(), bounds.getCenterY(),
-                TILE * (state.fog().sightRadius() + 1.2), critter.glow(), 42);
+                tile * (state.fog().sightRadius() + 1.2), critter.glow(), 42);
     }
 
     /**
@@ -349,11 +404,11 @@ public final class GamePanel extends JPanel {
     private void drawPlayer(Graphics2D g) {
         Rectangle2D bounds = tileBounds(state.player());
         double cx = bounds.getCenterX();
-        double cy = bounds.getCenterY() + TILE * 0.07;
+        double cy = bounds.getCenterY() + tile * 0.07;
 
-        paintGlow(g, cx, cy, TILE * 1.6, critter.glow(), 130);
+        paintGlow(g, cx, cy, tile * 1.6, critter.glow(), 130);
 
-        CritterArt.paint(g, critter, cx, cy, TILE * 0.3, animationFrame);
+        CritterArt.paint(g, critter, cx, cy, tile * 0.3, animationFrame);
     }
 
     // ---------------------------------------------------------------- extras
@@ -500,15 +555,15 @@ public final class GamePanel extends JPanel {
 
     private Rectangle2D tileBounds(Position position) {
         return new Rectangle2D.Double(
-                boardLeft() + position.col() * TILE + GAP / 2.0,
-                MARGIN + position.row() * TILE + GAP / 2.0,
-                TILE - GAP,
-                TILE - GAP);
+                boardLeft() + position.col() * tile + GAP / 2.0,
+                MARGIN + position.row() * tile + GAP / 2.0,
+                tile - GAP,
+                tile - GAP);
     }
 
     /** Where the grid starts, centred when the panel is wider than the level. */
     private double boardLeft() {
-        double gridWidth = state.map().cols() * TILE;
+        double gridWidth = state.map().cols() * tile;
         return Math.max(MARGIN, (getWidth() - gridWidth) / 2.0);
     }
 }
