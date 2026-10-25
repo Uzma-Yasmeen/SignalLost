@@ -212,17 +212,26 @@ public final class GameState {
      *         useful to suggest
      */
     public List<Position> hintRoute(int maxSteps) {
-        if (escaped || maxSteps <= 0) {
-            return List.of();
-        }
-        Position goal = hasAllKeys() ? exit : nearestKey();
-        if (goal == null) {
+        if (escaped || isAttemptOver() || maxSteps <= 0) {
             return List.of();
         }
 
         Set<Position> watched = new HashSet<>();
         for (Guard guard : guards) {
             watched.addAll(guard.watchedTiles(map));
+        }
+
+        // Standing in somebody's sight, the useful advice is not "the key is
+        // that way", it is "get out of view". Progress is no good to a player
+        // who is about to be caught making it.
+        Position goal = hintSeeksCover()
+                ? nearestCover(watched)
+                : (hasAllKeys() ? exit : nearestKey());
+        if (goal == null) {
+            goal = hasAllKeys() ? exit : nearestKey();
+        }
+        if (goal == null) {
+            return List.of();
         }
 
         List<Position> path = AStarPathfinder.findPath(map, player, goal,
@@ -232,6 +241,17 @@ public final class GameState {
         return path.size() <= 1
                 ? List.of()
                 : List.copyOf(path.subList(1, Math.min(path.size(), maxSteps + 1)));
+    }
+
+    /**
+     * Whether the hint is currently pointing at cover rather than at a key.
+     *
+     * <p>The UI colours the arrow differently for the two, because "go this way
+     * to make progress" and "go this way or be caught" deserve to look
+     * different at a glance.
+     */
+    public boolean hintSeeksCover() {
+        return isPlayerWatched();
     }
 
     /**
@@ -251,6 +271,33 @@ public final class GameState {
             }
         }
         return nearest;
+    }
+
+    /**
+     * The closest tile no guard can see and none is standing on.
+     *
+     * <p>Breadth-first, so it finds the quickest way out of view rather than
+     * the safest-looking one further off: when a hunter is closing, the number
+     * of turns it takes to disappear is the thing that matters.
+     */
+    private Position nearestCover(Set<Position> watched) {
+        Deque<Position> frontier = new ArrayDeque<>();
+        Set<Position> seen = new HashSet<>();
+        frontier.add(player);
+        seen.add(player);
+
+        while (!frontier.isEmpty()) {
+            Position current = frontier.remove();
+            if (!watched.contains(current) && !isGuardOn(current)) {
+                return current;
+            }
+            for (Position neighbour : map.walkableNeighbours(current)) {
+                if (!isGuardOn(neighbour) && seen.add(neighbour)) {
+                    frontier.add(neighbour);
+                }
+            }
+        }
+        return null;
     }
 
     /** True when some guard is standing on this tile. */

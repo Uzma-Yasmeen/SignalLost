@@ -41,13 +41,23 @@ public final class GamePanel extends JPanel {
      */
     private static final int PREFERRED_TILE = 40;
 
-    /** Below this a sprite stops being legible, so the window shrinks no further. */
-    private static final int MIN_TILE = 18;
+    /**
+     * The board shrinks only as a last resort, and never past this.
+     *
+     * <p>The first version of this dropped to 18, which solved the window
+     * fitting by making the puzzle too small to enjoy. The board is the game;
+     * the furniture around it is what should give up room first, which is why
+     * the HUD and the margins were slimmed rather than the tiles.
+     */
+    private static final int MIN_TILE = 30;
 
     /** Room the window needs beyond the board: HUD, controls and a title bar. */
-    private static final int FURNITURE_HEIGHT = 62 + 46 + 48;
+    private static final int FURNITURE_HEIGHT = 54 + 50 + 34;
+
+    /** The frame around the panel, which the screen has to hold as well. */
+    private static final int WINDOW_BORDER = 24;
     private static final int GAP = 2;
-    private static final int MARGIN = 14;
+    private static final int MARGIN = 8;
 
     /**
      * The narrowest the board is allowed to be.
@@ -109,7 +119,8 @@ public final class GamePanel extends JPanel {
     private static int tileSizeFor(GameMap map) {
         java.awt.Rectangle usable = usableScreen();
         int forHeight = (usable.height - FURNITURE_HEIGHT - MARGIN * 2) / map.rows();
-        int forWidth = (usable.width - MARGIN * 2) / map.cols();
+        // The window frame itself takes a little width beyond the panel.
+        int forWidth = (usable.width - MARGIN * 2 - WINDOW_BORDER) / map.cols();
 
         int fitted = Math.min(forHeight, forWidth);
         return Math.max(MIN_TILE, Math.min(PREFERRED_TILE, fitted));
@@ -298,8 +309,13 @@ public final class GamePanel extends JPanel {
         double cx = bounds.getCenterX();
         double cy = bounds.getCenterY();
 
-        paintGlow(g, cx, cy, tile * 1.1, Palette.HINT, 120);
-        ObjectSprite.paintArrow(g, cx, cy, tile * 0.78, quarterTurnsTowards(step));
+        // Amber when the advice is "get out of sight", blue when it is
+        // "this way to the key": two different kinds of urgency.
+        boolean fleeing = state.hintSeeksCover();
+        Color colour = fleeing ? Palette.GUARD_ALERT : Palette.HINT;
+
+        paintGlow(g, cx, cy, tile * 1.2, colour, fleeing ? 150 : 120);
+        ObjectSprite.paintArrow(g, cx, cy, tile * 0.78, quarterTurnsTowards(step), colour);
     }
 
     /** Which way the arrow points: 0 up, 1 right, 2 down, 3 left. */

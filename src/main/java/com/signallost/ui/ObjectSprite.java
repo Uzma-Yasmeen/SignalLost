@@ -135,10 +135,10 @@ public final class ObjectSprite {
      * @param quarterTurns 0 up, 1 right, 2 down, 3 left
      */
     public static void paintArrow(Graphics2D g, double cx, double cy, double size,
-                                  int quarterTurns) {
+                                  int quarterTurns, Color colour) {
         Graphics2D rotated = (Graphics2D) g.create();
         rotated.rotate(Math.PI / 2 * quarterTurns, cx, cy);
-        PixelSprite.paint(rotated, ARROW, palette(Palette.HINT, 1.0), cx, cy, size);
+        PixelSprite.paint(rotated, ARROW, palette(colour, 1.0), cx, cy, size);
         rotated.dispose();
     }
 

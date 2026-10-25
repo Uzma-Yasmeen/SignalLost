@@ -14,6 +14,18 @@ Built step by step.
   limit.
 - **Step 5 — next.** A sentinel guard with a rotating vision cone.
 
+## Telling the player what the keys do
+
+The control strip across the bottom names every key. It used to be dim grey on
+a dark bar, which drew the fair question of how anybody is supposed to know
+that `H` gives a hint — they were not, because the strip was legible only if
+you already knew to look at it. The keycaps are bright, the captions are
+full-strength text, and an accent line separates the strip from the board.
+
+The board keeps its tile size and the furniture gives up room instead. An
+earlier attempt at making the window fit shrank the tiles to as little as 18
+pixels, which solved the window and ruined the puzzle. The board is the game.
+
 ## The screens
 
 ```
@@ -65,7 +77,7 @@ Tests:
 mvn -q test
 ```
 
-184 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+188 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
 
@@ -274,6 +286,13 @@ is about getting out. The second is about getting out clean.
 
 Press `H` and an arrow appears on the tile to step onto next. That is the whole
 hint: one direction, from where you are standing.
+
+**What it points at depends on the trouble you are in.** Out of sight, it points
+along the safest route to the nearest key, then the exit, and the arrow is blue.
+Standing in a guard's sight, it points at the quickest way **out of view**, and
+the arrow is amber. Telling a player the key is east is no use when they are
+about to be caught going there — the progress they would make is progress they
+are about to lose.
 
 It used to draw the next seven tiles as a fading trail, and that was the wrong
 shape of help. A route drawn across the map answers the level rather than the

@@ -21,7 +21,7 @@ import java.awt.geom.RoundRectangle2D;
  */
 public final class HudBar extends JPanel {
 
-    private static final int HEIGHT = 62;
+    private static final int HEIGHT = 54;
 
     /** Marks drawn on a chip's dot, so chips read at a glance. */
     private enum Glyph { DOT, DIAMOND }
@@ -62,11 +62,11 @@ public final class HudBar extends JPanel {
 
         g.setColor(Palette.TEXT);
         g.setFont(Fonts.display(17f));
-        g.drawString(critter.displayName(), 62, 28);
+        g.drawString(critter.displayName(), 62, 25);
 
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(12f));
-        g.drawString(prettyLevelName() + "  ·  SIGHT " + state.fog().sightRadius(), 62, 46);
+        g.drawString(prettyLevelName() + "  ·  SIGHT " + state.fog().sightRadius(), 62, 43);
     }
 
     /** Turns a resource name like "level1" into "LEVEL 1" for display. */
@@ -183,11 +183,11 @@ public final class HudBar extends JPanel {
         int x = rightEdge - blockWidth;
 
         g.setColor(Palette.TEXT_DIM);
-        g.drawString(label, x + (blockWidth - labelWidth) / 2, 46);
+        g.drawString(label, x + (blockWidth - labelWidth) / 2, 43);
 
         g.setColor(clockColour());
         g.setFont(Fonts.mono(22f));
-        g.drawString(number, x + (blockWidth - numberWidth) / 2, 32);
+        g.drawString(number, x + (blockWidth - numberWidth) / 2, 29);
     }
 
     /** Pale while there is room, amber when the clock tightens, red at the end. */
