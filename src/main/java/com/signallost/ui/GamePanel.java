@@ -77,9 +77,6 @@ public final class GamePanel extends JPanel {
      */
     private final int tile;
 
-    /** How many steps of the route a hint gives away. */
-    private static final int HINT_STEPS = 7;
-
     private int animationFrame;
     private boolean showHint;
 
@@ -283,23 +280,38 @@ public final class GamePanel extends JPanel {
     }
 
     /**
-     * A trail of dots along the suggested route, fading out as it goes.
+     * One arrow on the tile to step onto next.
      *
-     * <p>Fading matters: a trail of equal dots looks like an instruction, while
-     * one that dissolves looks like a suggestion that runs out, which is what a
-     * hint that only shows the next few steps actually is.
+     * <p>It used to draw the next seven tiles as a fading trail, which is a
+     * route rather than a hint: it answers the whole level at once, most of it
+     * through fog the player cannot see into, and none of it tells them what to
+     * do with the turn in front of them. An arrow on the neighbouring tile says
+     * one thing, and they can ask again after they have moved.
      */
     private void drawHint(Graphics2D g) {
-        List<Position> route = state.hintRoute(HINT_STEPS);
-        for (int i = 0; i < route.size(); i++) {
-            Rectangle2D bounds = tileBounds(route.get(i));
-            double fade = 1.0 - (double) i / route.size();
-            double dot = tile * (0.13 * fade + 0.05);
-
-            g.setColor(Palette.withAlpha(Palette.HINT, (int) (210 * fade)));
-            g.fill(new Ellipse2D.Double(
-                    bounds.getCenterX() - dot, bounds.getCenterY() - dot, dot * 2, dot * 2));
+        List<Position> route = state.hintRoute(1);
+        if (route.isEmpty()) {
+            return;
         }
+        Position step = route.get(0);
+        Rectangle2D bounds = tileBounds(step);
+        double cx = bounds.getCenterX();
+        double cy = bounds.getCenterY();
+
+        paintGlow(g, cx, cy, tile * 1.1, Palette.HINT, 120);
+        ObjectSprite.paintArrow(g, cx, cy, tile * 0.78, quarterTurnsTowards(step));
+    }
+
+    /** Which way the arrow points: 0 up, 1 right, 2 down, 3 left. */
+    private int quarterTurnsTowards(Position step) {
+        Position from = state.player();
+        if (step.row() < from.row()) {
+            return 0;
+        }
+        if (step.col() > from.col()) {
+            return 1;
+        }
+        return step.row() > from.row() ? 2 : 3;
     }
 
     // ---------------------------------------------------------------- guards

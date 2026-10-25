@@ -101,7 +101,45 @@ public final class ObjectSprite {
             "................",
     };
 
+    /** The hint arrow, drawn pointing up and rotated to suit. */
+    private static final String[] ARROW = {
+            "................",
+            ".......BB.......",
+            "......BBBB......",
+            ".....BBBBBB.....",
+            "....BBBBBBBB....",
+            "...BBBBBBBBBB...",
+            "..BBBBBBBBBBBB..",
+            "..BBBBBBBBBBBB..",
+            ".....BBBBBB.....",
+            ".....BBBBBB.....",
+            ".....BBBBBB.....",
+            ".....BBBBBB.....",
+            ".....BBBBBB.....",
+            "................",
+            "................",
+            "................",
+    };
+
     private ObjectSprite() {
+    }
+
+    /**
+     * An arrow saying which way to go from here.
+     *
+     * <p>One arrow on the next tile rather than a trail across the map. A route
+     * drawn start to finish is a solution, and reading it is a different job
+     * from playing; a single direction is something the player can act on this
+     * turn and then ask again.
+     *
+     * @param quarterTurns 0 up, 1 right, 2 down, 3 left
+     */
+    public static void paintArrow(Graphics2D g, double cx, double cy, double size,
+                                  int quarterTurns) {
+        Graphics2D rotated = (Graphics2D) g.create();
+        rotated.rotate(Math.PI / 2 * quarterTurns, cx, cy);
+        PixelSprite.paint(rotated, ARROW, palette(Palette.HINT, 1.0), cx, cy, size);
+        rotated.dispose();
     }
 
     /**

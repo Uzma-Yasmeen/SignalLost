@@ -272,66 +272,24 @@ is about getting out. The second is about getting out clean.
 
 ## Hints
 
-Press `H` for a trail of dots towards whatever you need next — the key, or the
-exit once you hold it.
+Press `H` and an arrow appears on the tile to step onto next. That is the whole
+hint: one direction, from where you are standing.
 
-The route is A\* again, but with **weighted costs**: tiles a guard is watching
-cost extra, so the hint prefers a longer way round over a short way into trouble.
-It is deliberately omniscient, accounting for guards you cannot see, and it only
-shows the next seven steps. It points, it does not solve.
+It used to draw the next seven tiles as a fading trail, and that was the wrong
+shape of help. A route drawn across the map answers the level rather than the
+turn, most of it runs through fog the player cannot see into, and reading it is
+a different job from playing. An arrow says one thing, and they can ask again
+after they have moved.
 
-## Keys
+The route behind it is A\* with **weighted costs**: tiles a guard is watching
+cost extra, and tiles near a guard cost more the closer it is — far more when
+that guard is hunting. Avoiding only what a guard can see right now is not
+advice you can survive on, because a hunter covers ground faster than the
+player, so by the time you reach a tile it was merely near, it is looking at
+you. The arrow aims at the **nearest** key still on the floor, then at the exit.
 
-The exit needs **every** key on the level, not one. Level 1 has three, in three
-different corners.
-
-One key made a level a straight line: find it, walk out, and after two attempts
-you knew the route. Three force the player across the map and, more to the
-point, back again past guards who are now looking for them. `GameState` counts
-the keys on the map at load, so a level decides how many it wants simply by how
-many it draws.
-
-The hint points at the **nearest** key still on the floor, so it sends you to the
-one in front of you rather than back across the level.
-
-## Profile and progress
-
-The game asks who is playing, then keeps their best run on every level in
-`~/.signal-lost/progress.properties` — a plain text file, no library, readable
-and deletable by hand:
-
-```
-player.name=Uzma
-level1.stars=3
-level1.turns=58
-level1.sightings=0
-```
-
-Only an improvement is kept. More stars always wins; between runs with the same
-stars, fewer turns wins, then fewer sightings. That matters here more than in
-most games, because the stealth star rewards a slow careful route — without a
-best-of rule, a player chasing it would watch their fast two-star time get
-overwritten by every failed attempt.
-
-Nothing in the store throws at the caller. A profile that cannot be read is a
-fresh profile, and one that cannot be written is a lost high score; neither is
-worth taking the game down for.
-
-## Level select
-
-One box per level, showing the stars earned on it and the best run. A list of
-level names tells a player what exists; a grid of boxes with two of three stars
-filled in tells them what is left to do, which is the only reason to replay a
-level they have already beaten. Levels are locked until the player has enough
-stars across all of them, so stars are a currency rather than decoration.
-
-The levels themselves come from `/levels/index.txt`, so adding one is adding a
-text file and a line, with nothing to recompile:
-
-```
-level1 0
-level2 1
-```
+It is deliberately omniscient, accounting for guards you cannot see. That is the
+point of a hint, and the reason it is something you choose to turn on.
 
 ## Levels
 
