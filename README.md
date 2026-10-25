@@ -22,9 +22,14 @@ that `H` gives a hint — they were not, because the strip was legible only if
 you already knew to look at it. The keycaps are bright, the captions are
 full-strength text, and an accent line separates the strip from the board.
 
-The board keeps its tile size and the furniture gives up room instead. An
-earlier attempt at making the window fit shrank the tiles to as little as 18
-pixels, which solved the window and ruined the puzzle. The board is the game.
+**The window resizes and the board follows it.** Drag it, maximise it, and the
+tiles scale to whatever space there is, recomputed on every repaint.
+
+It was fixed at whatever size `pack()` chose, and not resizable at all. On a
+screen shorter than that, the control strip sat below the display with no way
+to reach it — and the fix I reached for first was shrinking the tiles, which
+solved the window by ruining the puzzle. The board is the game; the window
+should bend around it.
 
 ## The screens
 
@@ -77,7 +82,7 @@ Tests:
 mvn -q test
 ```
 
-188 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+191 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
 
@@ -309,6 +314,52 @@ you. The arrow aims at the **nearest** key still on the floor, then at the exit.
 
 It is deliberately omniscient, accounting for guards you cannot see. That is the
 point of a hint, and the reason it is something you choose to turn on.
+
+## Profile and progress
+
+The game asks who is playing, then keeps that player's best run on every level
+in `~/.signal-lost/progress.properties` — plain text, no library, readable and
+deletable by hand.
+
+**It lives in the player's home folder, not beside the game.** Nothing is
+carried along when the game is copied or shared, so somebody opening it on
+their own machine finds no file and starts at zero.
+
+**Each name gets its own progress.** One shared profile meant a friend who sat
+down at your laptop and typed their name inherited your stars, and saving
+overwrote yours with theirs. Keyed by name, both of you keep what you earned,
+and swapping back restores it:
+
+```
+player.last=sam
+player.sam.name=Sam
+player.sam.level1.stars=3
+player.sam.level1.turns=58
+player.sam.level1.sightings=0
+```
+
+Only an improvement is kept. More stars always wins; between runs with the same
+stars, fewer turns wins, then fewer sightings. That matters here more than in
+most games, because the stealth star rewards a slow careful route — without a
+best-of rule, a player chasing it would watch their fast two-star time get
+overwritten by every failed attempt.
+
+Nothing in the store throws at the caller. A profile that cannot be read is a
+fresh profile, and one that cannot be written is a lost high score; neither is
+worth taking the game down for.
+
+## Level select
+
+One box per level, showing the stars earned on it and the best run. A list of
+level names tells a player what exists; a grid of boxes with two of three stars
+filled in tells them what is left to do, which is the only reason to replay a
+level they have already beaten. Levels are locked until the player has enough
+stars across all of them, so stars are a currency rather than decoration.
+
+The boxes are numbered by their position in the list rather than by anything
+parsed out of a file name. Those two drifted apart once: the levels were ordered
+by unlock cost while being labelled from their file names, so the grid read
+1, 3, 3, 6 and looked like level 2 had gone missing.
 
 ## Levels
 
