@@ -217,7 +217,7 @@ public final class ScreenshotTool {
 
         GamePanel gamePanel = new GamePanel(state, critter);
         if (showHint) {
-            gamePanel.toggleHint();
+            gamePanel.requestHint();
         }
 
         JPanel root = new JPanel(new BorderLayout());

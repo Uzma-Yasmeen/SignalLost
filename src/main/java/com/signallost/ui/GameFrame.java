@@ -267,7 +267,7 @@ public final class GameFrame extends JFrame {
         });
         bindLetter('H', () -> {
             if (inGame()) {
-                gamePanel.toggleHint();
+                gamePanel.requestHint();
                 hud.repaint();
             }
         });

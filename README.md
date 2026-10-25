@@ -90,7 +90,7 @@ Tests:
 mvn -q test
 ```
 
-191 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+193 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
 
@@ -298,7 +298,13 @@ is about getting out. The second is about getting out clean.
 ## Hints
 
 Press `H` and an arrow appears on the tile to step onto next. That is the whole
-hint: one direction, from where you are standing.
+hint: one direction, from where you are standing, **for that turn only**. Move,
+and it is gone; press `H` again if you want another.
+
+It was a toggle to begin with, which meant one press left the arrow answering
+every turn for the rest of the level. That is the whole route again, just
+delivered a tile at a time. A hint you have to ask for each time is a hint; one
+that keeps talking is a walkthrough.
 
 **What it points at depends on the trouble you are in.** Out of sight, it points
 along the safest route to the nearest key, then the exit, and the arrow is blue.

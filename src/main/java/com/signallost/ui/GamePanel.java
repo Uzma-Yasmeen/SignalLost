@@ -90,7 +90,17 @@ public final class GamePanel extends JPanel {
     private int tile;
 
     private int animationFrame;
-    private boolean showHint;
+
+    /**
+     * The turn the player last asked for a hint, or -1 for never.
+     *
+     * <p>A hint lasts exactly the turn it was asked for. It used to be a toggle:
+     * one press and the arrow answered every turn for the rest of the level,
+     * which is the whole route again, just delivered one tile at a time. Keyed
+     * to the turn, it goes away the moment the player moves, and undoing back
+     * to that turn does not resurrect it either, because the count has to match.
+     */
+    private int hintTurn = -1;
 
     public GamePanel(GameState state, Critter critter) {
         this.state = state;
@@ -183,7 +193,7 @@ public final class GamePanel extends JPanel {
             }
         }
         drawGuardVision(g);
-        if (showHint) {
+        if (isHintShowing()) {
             drawHint(g);
         }
         drawPlayerLight(g);
@@ -288,13 +298,14 @@ public final class GamePanel extends JPanel {
 
     // ------------------------------------------------------------------ hint
 
-    public void toggleHint() {
-        showHint = !showHint;
+    /** Asks for one hint, or takes it back if it is already up this turn. */
+    public void requestHint() {
+        hintTurn = isHintShowing() ? -1 : state.turnsTaken();
         repaint();
     }
 
     public boolean isHintShowing() {
-        return showHint;
+        return hintTurn == state.turnsTaken();
     }
 
     /**
