@@ -77,15 +77,17 @@ public final class GamePanel extends JPanel {
     private final javax.swing.Timer animator;
 
     /**
-     * How big one tile is drawn, chosen to fit the screen.
+     * How big one tile is drawn, recomputed from the panel's actual size every
+     * time it paints.
      *
-     * <p>A fixed 40 made the taller levels build a window 767 pixels high,
-     * which does not fit a 768-pixel screen once a taskbar and a title bar have
-     * taken their share. The window opened with its bottom off the display, so
-     * the control strip — the only place the game says what the keys do — was
-     * invisible.
+     * <p>This started as a value fixed when the panel was built, which meant
+     * the board could only be the size the window happened to open at. If that
+     * window was taller than the screen, the control strip fell off the bottom
+     * and there was nothing the player could do about it, because the window
+     * was not resizable either. Sizing from the panel means the board follows
+     * the window wherever the player drags it.
      */
-    private final int tile;
+    private int tile;
 
     private int animationFrame;
     private boolean showHint;
@@ -95,6 +97,9 @@ public final class GamePanel extends JPanel {
         this.critter = critter;
         GameMap map = state.map();
         this.tile = tileSizeFor(map);
+        setMinimumSize(new Dimension(
+                map.cols() * MIN_TILE + MARGIN * 2,
+                map.rows() * MIN_TILE + MARGIN * 2));
         setPreferredSize(new Dimension(
                 Math.max(map.cols() * tile + MARGIN * 2, MIN_BOARD_WIDTH),
                 map.rows() * tile + MARGIN * 2));
@@ -162,6 +167,8 @@ public final class GamePanel extends JPanel {
     @Override
     protected void paintComponent(Graphics graphics) {
         super.paintComponent(graphics);
+        this.tile = tileForCurrentSize();
+
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -584,14 +591,30 @@ public final class GamePanel extends JPanel {
     private Rectangle2D tileBounds(Position position) {
         return new Rectangle2D.Double(
                 boardLeft() + position.col() * tile + GAP / 2.0,
-                MARGIN + position.row() * tile + GAP / 2.0,
+                boardTop() + position.row() * tile + GAP / 2.0,
                 tile - GAP,
                 tile - GAP);
     }
 
-    /** Where the grid starts, centred when the panel is wider than the level. */
+    /** The biggest tile the panel can currently hold, never above the preferred one. */
+    private int tileForCurrentSize() {
+        GameMap map = state.map();
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            return tile;
+        }
+        int byWidth = (getWidth() - MARGIN * 2) / map.cols();
+        int byHeight = (getHeight() - MARGIN * 2) / map.rows();
+        return Math.max(6, Math.min(PREFERRED_TILE, Math.min(byWidth, byHeight)));
+    }
+
+    /** Where the grid starts, centred in whatever space the panel has. */
     private double boardLeft() {
         double gridWidth = state.map().cols() * tile;
         return Math.max(MARGIN, (getWidth() - gridWidth) / 2.0);
+    }
+
+    private double boardTop() {
+        double gridHeight = state.map().rows() * tile;
+        return Math.max(MARGIN, (getHeight() - gridHeight) / 2.0);
     }
 }

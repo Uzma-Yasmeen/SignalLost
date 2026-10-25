@@ -105,6 +105,47 @@ class ProgressTest {
     // ------------------------------------------------------------ persistence
 
     @Test
+    @DisplayName("Two players on one machine keep separate progress")
+    void playersDoNotShareProgress(@TempDir Path folder) {
+        ProgressStore store = new ProgressStore(folder.resolve("progress.properties"));
+
+        PlayerProfile first = new PlayerProfile("Sahasra");
+        first.record("level1", escape(3, 38, 0));
+        store.save(first);
+
+        // A friend sits down and types their own name.
+        PlayerProfile friend = store.loadFor("Ravi");
+        assertEquals(0, friend.totalStars(), "a new name starts at zero");
+        friend.record("level1", escape(1, 140, 9));
+        store.save(friend);
+
+        // Neither has taken anything from the other.
+        assertEquals(3, store.loadFor("Sahasra").starsOn("level1"));
+        assertEquals(1, store.loadFor("Ravi").starsOn("level1"));
+    }
+
+    @Test
+    @DisplayName("A name is matched regardless of case or stray spaces")
+    void nameMatchingIsForgiving(@TempDir Path folder) {
+        ProgressStore store = new ProgressStore(folder.resolve("progress.properties"));
+        PlayerProfile saved = new PlayerProfile("Sam");
+        saved.record("level1", escape(2, 70, 3));
+        store.save(saved);
+
+        assertEquals(2, store.loadFor("  sam ").starsOn("level1"));
+    }
+
+    @Test
+    @DisplayName("The title screen greets whoever played last")
+    void loadReturnsTheLastPlayer(@TempDir Path folder) {
+        ProgressStore store = new ProgressStore(folder.resolve("progress.properties"));
+        store.save(new PlayerProfile("Sahasra"));
+        store.save(new PlayerProfile("Ravi"));
+
+        assertEquals("Ravi", store.load().name());
+    }
+
+    @Test
     @DisplayName("A profile survives being written out and read back")
     void profileRoundTrips(@TempDir Path folder) {
         ProgressStore store = new ProgressStore(folder.resolve("progress.properties"));
@@ -113,7 +154,7 @@ class ProgressTest {
         saved.record("level2", escape(1, 210, 7));
         store.save(saved);
 
-        PlayerProfile loaded = store.load();
+        PlayerProfile loaded = store.loadFor("Uzma");
 
         assertNotNull(loaded);
         assertEquals("Uzma", loaded.name());

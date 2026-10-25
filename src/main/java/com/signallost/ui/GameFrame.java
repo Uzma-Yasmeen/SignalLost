@@ -95,7 +95,10 @@ public final class GameFrame extends JFrame {
         bindKeys();
 
         pack();
-        setResizable(false);
+        // Resizable on purpose. Locked at the packed size, a window taller than
+        // the screen left the control strip unreachable with no way to fix it.
+        setResizable(true);
+        setMinimumSize(new java.awt.Dimension(560, 420));
         setLocationRelativeTo(null);
     }
 
@@ -117,11 +120,10 @@ public final class GameFrame extends JFrame {
     private void showNameEntry() {
         screen = NAME_CARD;
         namePanel = new NamePanel(profile == null ? null : profile.name(), chosenName -> {
-            if (profile == null) {
-                profile = new PlayerProfile(chosenName);
-            } else {
-                profile.rename(chosenName);
-            }
+            // A name nobody has used starts at zero; a returning one picks up
+            // its own stars. Renaming the saved profile would have handed the
+            // last player's progress to whoever typed next.
+            profile = store.loadFor(chosenName);
             store.save(profile);
             showCharacterSelect();
         });
