@@ -23,7 +23,15 @@ you already knew to look at it. The keycaps are bright, the captions are
 full-strength text, and an accent line separates the strip from the board.
 
 **The window resizes and the board follows it.** Drag it, maximise it, and the
-tiles scale to whatever space there is, recomputed on every repaint.
+tiles scale to whatever space there is, recomputed on every repaint. Every
+screen centres its content, so none of them cling to a corner of a large
+window.
+
+**Nothing calls `pack()` after the window is up.** Packing a maximised window
+resizes it to its preferred size, which un-maximises it — so every press of
+Enter threw the player out of full screen. Once a window is on screen its size
+belongs to the player, and the only thing worth doing automatically is growing
+it when a screen genuinely needs more room.
 
 It was fixed at whatever size `pack()` chose, and not resizable at all. On a
 screen shorter than that, the control strip sat below the display with no way

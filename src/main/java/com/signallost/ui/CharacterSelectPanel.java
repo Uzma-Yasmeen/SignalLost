@@ -134,10 +134,30 @@ public final class CharacterSelectPanel extends JPanel {
         int column = index % COLUMNS;
         int row = index / COLUMNS;
         return new Rectangle(
-                MARGIN + column * (CARD_W + GAP),
-                TOP + row * (CARD_H + GAP),
+                horizontalOffset() + column * (CARD_W + GAP),
+                verticalOffset() + TOP + row * (CARD_H + GAP),
                 CARD_W, CARD_H);
     }
+
+    /**
+     * How far down the block of cards starts.
+     *
+     * <p>Fixed offsets left the grid clinging to the top of a maximised window
+     * with the rest of the screen empty. Centring the whole block means the
+     * screen looks composed at any size the player drags it to.
+     */
+    /** Centres the cards across the window, so a wide screen does not strand them left. */
+    private int horizontalOffset() {
+        int contentWidth = CARD_W * COLUMNS + GAP * (COLUMNS - 1);
+        return Math.max(MARGIN, (getWidth() - contentWidth) / 2);
+    }
+
+    private int verticalOffset() {
+        int rows = Math.max(1, (roster.length + COLUMNS - 1) / COLUMNS);
+        int contentHeight = TOP + rows * CARD_H + (rows - 1) * GAP + FOOTER;
+        return Math.max(0, (getHeight() - contentHeight) / 2);
+    }
+
 
     // -------------------------------------------------------------- painting
 
@@ -167,15 +187,17 @@ public final class CharacterSelectPanel extends JPanel {
     private void drawHeading(Graphics2D g) {
         g.setColor(Palette.ACCENT);
         g.setFont(Fonts.bodyBold(12f));
-        g.drawString("SIGNAL LOST", MARGIN, 46);
+        int top = verticalOffset();
+        int left = horizontalOffset();
+        g.drawString("SIGNAL LOST", left, top + 46);
 
         g.setColor(Palette.TEXT);
         g.setFont(Fonts.display(30f));
-        g.drawString("Pick your escape artist", MARGIN, 84);
+        g.drawString("Pick your escape artist", left, top + 84);
 
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(14f));
-        g.drawString("They all move the same. The facility will not be charmed.", MARGIN, 108);
+        g.drawString("They all move the same. The facility will not be charmed.", left, top + 108);
     }
 
     private void drawCard(Graphics2D g, int index) {
@@ -225,7 +247,8 @@ public final class CharacterSelectPanel extends JPanel {
     }
 
     private void drawFooter(Graphics2D g) {
-        int y = getHeight() - FOOTER / 2 - 2;
+        int rows = Math.max(1, (roster.length + COLUMNS - 1) / COLUMNS);
+        int y = verticalOffset() + TOP + rows * CARD_H + (rows - 1) * GAP + 40;
 
         g.setFont(Fonts.body(13f));
         g.setColor(Palette.TEXT_DIM);

@@ -155,7 +155,7 @@ public final class GameFrame extends JFrame {
 
         root.add(gameScreen, GAME_CARD);
         cards.show(root, GAME_CARD);
-        pack();
+        fitToContent();
     }
 
     private void loadLevel() {
@@ -175,7 +175,37 @@ public final class GameFrame extends JFrame {
     private void swapIn(JPanel panel, String card) {
         root.add(panel, card);
         cards.show(root, card);
-        pack();
+        fitToContent();
+    }
+
+    /**
+     * Grows the window if the new screen needs more room, and otherwise leaves
+     * it exactly as the player left it.
+     *
+     * <p>Every screen change used to call {@code pack()}. Packing a maximised
+     * window resizes it to its preferred size, which un-maximises it, so the
+     * window snapped back to a small box on every single Enter. Once a window
+     * is on screen its size belongs to the player, and the only thing worth
+     * doing automatically is making it bigger when the content will not fit.
+     */
+    private void fitToContent() {
+        if (!isVisible()) {
+            pack();
+            return;
+        }
+        if ((getExtendedState() & MAXIMIZED_BOTH) != 0) {
+            return;   // the player asked for the whole screen; leave it alone
+        }
+
+        java.awt.Dimension wanted = root.getPreferredSize();
+        java.awt.Insets insets = getInsets();
+        int neededWidth = wanted.width + insets.left + insets.right;
+        int neededHeight = wanted.height + insets.top + insets.bottom;
+
+        if (neededWidth > getWidth() || neededHeight > getHeight()) {
+            setSize(Math.max(getWidth(), neededWidth), Math.max(getHeight(), neededHeight));
+            setLocationRelativeTo(null);
+        }
     }
 
     /**
@@ -250,7 +280,6 @@ public final class GameFrame extends JFrame {
         bindLetter('R', () -> {
             if (inGame()) {
                 loadLevel();
-                pack();
                 refresh();
             }
         });

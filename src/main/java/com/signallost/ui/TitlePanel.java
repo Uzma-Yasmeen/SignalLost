@@ -52,32 +52,42 @@ public final class TitlePanel extends JPanel {
         g.fillRect(0, 0, getWidth(), getHeight());
         g.setPaint(null);
 
-        // A faint pool of light behind the title, like the one the player carries.
-        glow(g, getWidth() / 2.0, 120, 260, Palette.PLAYER, 26);
+        // Everything is drawn relative to a centred block, so maximising the
+        // window does not leave the title stranded near the top.
+        int top = topOfContent();
 
-        drawTitle(g);
-        drawCast(g);
-        drawFooter(g);
+        glow(g, getWidth() / 2.0, top + 60, 260, Palette.PLAYER, 26);
+
+        drawTitle(g, top);
+        drawCast(g, top);
+        drawFooter(g, top);
 
         g.dispose();
     }
 
-    private void drawTitle(Graphics2D g) {
+    /** The natural height of the title block, title through to the prompt. */
+    private static final int CONTENT_HEIGHT = 340;
+
+    private int topOfContent() {
+        return Math.max(0, (getHeight() - CONTENT_HEIGHT) / 2);
+    }
+
+    private void drawTitle(Graphics2D g, int top) {
         g.setColor(Palette.TEXT);
         g.setFont(Fonts.display(52f));
-        centre(g, "SIGNAL LOST", 126);
+        centre(g, "SIGNAL LOST", top + 66);
 
         g.setColor(Palette.ACCENT);
         g.setFont(Fonts.body(15f));
-        centre(g, "Find the keys. Reach the exit. Do not be seen.", 158);
+        centre(g, "Find the keys. Reach the exit. Do not be seen.", top + 98);
 
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(13f));
-        centre(g, levelCount + " levels  ·  three stars each", 184);
+        centre(g, levelCount + " levels  ·  three stars each", top + 124);
     }
 
     /** The six characters lined up, as a reason to look at the screen. */
-    private void drawCast(Graphics2D g) {
+    private void drawCast(Graphics2D g, int top) {
         Critter[] cast = Critter.values();
         double size = 46;
         double gap = 18;
@@ -85,25 +95,25 @@ public final class TitlePanel extends JPanel {
         double x = (getWidth() - total) / 2 + size / 2;
 
         for (int i = 0; i < cast.length; i++) {
-            CritterArt.paint(g, cast[i], x + i * (size + gap), 258, size / 2);
+            CritterArt.paint(g, cast[i], x + i * (size + gap), top + 198, size / 2);
         }
     }
 
-    private void drawFooter(Graphics2D g) {
+    private void drawFooter(Graphics2D g, int top) {
         if (profile != null) {
             g.setColor(Palette.TEXT);
             g.setFont(Fonts.bodyBold(15f));
-            centre(g, "Welcome back, " + profile.name(), 340);
+            centre(g, "Welcome back, " + profile.name(), top + 280);
 
             g.setColor(Palette.KEY);
             g.setFont(Fonts.body(13f));
             centre(g, profile.totalStars() + " of " + (levelCount * Score.MAX_STARS)
-                    + " stars collected", 364);
+                    + " stars collected", top + 304);
         }
 
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(14f));
-        centre(g, "Press Enter to begin", getHeight() - 44);
+        centre(g, "Press Enter to begin", top + CONTENT_HEIGHT - 4);
     }
 
     private void glow(Graphics2D g, double cx, double cy, double radius,

@@ -144,10 +144,30 @@ public final class LevelSelectPanel extends JPanel {
         int column = index % columns;
         int row = index / columns;
         return new Rectangle(
-                MARGIN + column * (BOX + GAP),
-                TOP + row * (BOX + GAP),
+                horizontalOffset() + column * (BOX + GAP),
+                verticalOffset() + TOP + row * (BOX + GAP),
                 BOX, BOX);
     }
+
+    /**
+     * How far down the block of cards starts.
+     *
+     * <p>Fixed offsets left the grid clinging to the top of a maximised window
+     * with the rest of the screen empty. Centring the whole block means the
+     * screen looks composed at any size the player drags it to.
+     */
+    /** Centres the grid across the window, so a wide screen does not strand it left. */
+    private int horizontalOffset() {
+        int contentWidth = BOX * columns + GAP * (columns - 1);
+        return Math.max(MARGIN, (getWidth() - contentWidth) / 2);
+    }
+
+    private int verticalOffset() {
+        int rows = Math.max(1, (levels.size() + columns - 1) / columns);
+        int contentHeight = TOP + rows * BOX + (rows - 1) * GAP + FOOTER;
+        return Math.max(0, (getHeight() - contentHeight) / 2);
+    }
+
 
     // -------------------------------------------------------------- painting
 
@@ -174,26 +194,29 @@ public final class LevelSelectPanel extends JPanel {
     private void drawHeading(Graphics2D g) {
         g.setColor(Palette.ACCENT);
         g.setFont(Fonts.bodyBold(12f));
-        g.drawString(profile.name().toUpperCase(), MARGIN, 46);
+        int top = verticalOffset();
+        int left = horizontalOffset();
+        g.drawString(profile.name().toUpperCase(), left, top + 46);
 
         g.setColor(Palette.TEXT);
         g.setFont(Fonts.display(30f));
-        g.drawString("Choose a level", MARGIN, 84);
+        g.drawString("Choose a level", left, top + 84);
 
         int earned = profile.totalStars();
         int available = levels.size() * Score.MAX_STARS;
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(14f));
-        g.drawString(earned + " of " + available + " stars", MARGIN, 108);
+        g.drawString(earned + " of " + available + " stars", left, top + 108);
 
         // The running total, top right, where a score belongs.
         String tally = earned + "/" + available;
         g.setFont(Fonts.display(22f));
         FontMetrics metrics = g.getFontMetrics();
-        int x = getWidth() - MARGIN - metrics.stringWidth(tally);
+        int contentRight = horizontalOffset() + BOX * columns + GAP * (columns - 1);
+        int x = contentRight - metrics.stringWidth(tally);
         g.setColor(Palette.KEY);
-        g.drawString(tally, x, 58);
-        ObjectSprite.paintStar(g, x - 26, 50, 30, true);
+        g.drawString(tally, x, top + 58);
+        ObjectSprite.paintStar(g, x - 26, top + 50, 30, true);
     }
 
     private void drawBox(Graphics2D g, int index) {
@@ -303,7 +326,8 @@ public final class LevelSelectPanel extends JPanel {
         g.setFont(Fonts.body(13f));
         g.setColor(Palette.TEXT_DIM);
         FontMetrics metrics = g.getFontMetrics();
-        g.drawString(hint, (getWidth() - metrics.stringWidth(hint)) / 2,
-                getHeight() - FOOTER / 2 - 2);
+        int rows = Math.max(1, (levels.size() + columns - 1) / columns);
+        int blockBottom = verticalOffset() + TOP + rows * BOX + (rows - 1) * GAP;
+        g.drawString(hint, (getWidth() - metrics.stringWidth(hint)) / 2, blockBottom + 40);
     }
 }

@@ -85,29 +85,33 @@ public final class NamePanel extends JPanel {
         g.fillRect(0, 0, getWidth(), getHeight());
         g.setPaint(null);
 
+        int top = Math.max(0, (getHeight() - CONTENT_HEIGHT) / 2);
+
         g.setColor(Palette.ACCENT);
         g.setFont(Fonts.bodyBold(12f));
-        centre(g, "SIGNAL LOST", 64);
+        centre(g, "SIGNAL LOST", top + 34);
 
         g.setColor(Palette.TEXT);
         g.setFont(Fonts.display(30f));
-        centre(g, "Who is escaping?", 112);
+        centre(g, "Who is escaping?", top + 82);
 
-        drawField(g);
+        drawField(g, top + 120);
 
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(13f));
         centre(g, isUsable() ? "Enter to begin" : "type a name, then Enter",
-                getHeight() - 48);
+                top + CONTENT_HEIGHT - 10);
 
         g.dispose();
     }
 
-    private void drawField(Graphics2D g) {
+    /** Title through to the prompt, so the block can be centred. */
+    private static final int CONTENT_HEIGHT = 230;
+
+    private void drawField(Graphics2D g, int y) {
         int width = 360;
         int height = 54;
         int x = (getWidth() - width) / 2;
-        int y = 150;
 
         g.setColor(Palette.withAlpha(Palette.TEXT, 14));
         g.fill(new RoundRectangle2D.Double(x, y, width, height, 12, 12));
