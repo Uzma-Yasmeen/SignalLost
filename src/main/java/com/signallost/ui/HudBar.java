@@ -94,6 +94,7 @@ public final class HudBar extends JPanel {
             x = drawChip(g, x, "UNDO " + state.undoDepth(), Palette.ACCENT, Glyph.DOT);
         }
         x = drawChip(g, x, livesLabel(), livesColour(), Glyph.DOT);
+        x = drawChip(g, x, hintsLabel(), hintsColour(), Glyph.DOT);
         x = drawChip(g, x,
                 "KEYS " + state.keysHeld() + "/" + state.keysRequired(),
                 state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY,
@@ -104,6 +105,20 @@ public final class HudBar extends JPanel {
     private String livesLabel() {
         int lives = state.livesLeft();
         return lives == 1 ? "LAST LIFE" : "LIVES " + lives;
+    }
+
+    private String hintsLabel() {
+        int hints = state.hintsLeft();
+        return hints == 0 ? "NO HINTS" : "HINTS " + hints;
+    }
+
+    /** Dim while there are plenty, amber on the last one, red once spent. */
+    private Color hintsColour() {
+        int hints = state.hintsLeft();
+        if (hints == 0) {
+            return Palette.DANGER;
+        }
+        return hints == 1 ? Palette.GUARD_ALERT : Palette.TEXT_DIM;
     }
 
     /** The counter turns amber then red as the attempts run out. */

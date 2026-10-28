@@ -101,6 +101,7 @@ public final class GamePanel extends JPanel {
      * to that turn does not resurrect it either, because the count has to match.
      */
     private int hintTurn = -1;
+    private boolean hintHidden;
 
     public GamePanel(GameState state, Critter critter) {
         this.state = state;
@@ -298,14 +299,31 @@ public final class GamePanel extends JPanel {
 
     // ------------------------------------------------------------------ hint
 
-    /** Asks for one hint, or takes it back if it is already up this turn. */
+    /**
+     * Asks for one hint, spending one from the level's budget.
+     *
+     * <p>A hint is bought for the turn it is asked about, not for the press, so
+     * dismissing it and looking again before moving is free. Buying costs
+     * nothing if there is nothing to buy: out of hints, the key does nothing
+     * and the strip says why.
+     */
     public void requestHint() {
-        hintTurn = isHintShowing() ? -1 : state.turnsTaken();
+        if (isHintBought()) {
+            hintHidden = !hintHidden;
+        } else if (state.spendHint()) {
+            hintTurn = state.turnsTaken();
+            hintHidden = false;
+        }
         repaint();
     }
 
-    public boolean isHintShowing() {
+    /** Whether this turn's hint has been paid for, shown or not. */
+    private boolean isHintBought() {
         return hintTurn == state.turnsTaken();
+    }
+
+    public boolean isHintShowing() {
+        return isHintBought() && !hintHidden;
     }
 
     /**

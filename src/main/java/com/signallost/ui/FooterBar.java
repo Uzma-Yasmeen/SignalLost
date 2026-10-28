@@ -32,7 +32,7 @@ public final class FooterBar extends JPanel {
             {"← ↑ → ↓", "move"},
             {"SPACE", "wait"},
             {"U", "undo"},
-            {"H", "hint"},
+            {"H", "hint (3 a level)"},
             {"M", "map"},
             {"R", "restart"},
             {"C", "character"},

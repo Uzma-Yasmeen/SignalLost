@@ -4,7 +4,7 @@
 
 ![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
 ![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-200%20passing-success)
+![Tests](https://img.shields.io/badge/tests-205%20passing-success)
 ![No dependencies](https://img.shields.io/badge/runtime%20dependencies-none-blue)
 ![Licence](https://img.shields.io/badge/licence-MIT-green)
 
@@ -49,8 +49,8 @@ You can genuinely take a move back and try the other door.
 <tr>
 <td><strong>Spotted.</strong> The patroller's line of sight turns red, the alarm
 goes up, and a hunter starts for where you were seen.</td>
-<td><strong>A hint, for one turn.</strong> One good move, never the whole route,
-and it expires the moment you move.</td>
+<td><strong>Three hints a level.</strong> One good move, never the whole
+route, and it expires the moment you move.</td>
 <td><strong>Progress.</strong> Stars per level, saved per player name, later
 levels unlocked by the stars you have earned.</td>
 </tr>
@@ -73,7 +73,7 @@ java -cp target/classes com.signallost.Main
 | arrow keys, or W A S D | move one tile, which costs one turn |
 | space, or `.` | wait one turn, or claim your next life after a capture |
 | `U` | undo the last turn: guards, sightings and the clock included |
-| `H` | show one suggested move |
+| `H` | show one suggested move — three a level |
 | `R` | restart the level |
 | `C` | back to the character select |
 | `Esc` | back to the level select |

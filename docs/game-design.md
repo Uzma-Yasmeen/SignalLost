@@ -107,7 +107,21 @@ is about getting out. The second is about getting out clean.
 
 Press `H` and an arrow appears on the tile to step onto next. That is the whole
 hint: one direction, from where you are standing, **for that turn only**. Move,
-and it is gone; press `H` again if you want another.
+and it is gone.
+
+**You get three a level, and that is all.** Unlimited hints made the budget
+version of this section unnecessary and the puzzle optional: a player could ask
+every single turn and be walked to the exit a move at a time, which is the
+walkthrough problem again wearing a different hat. Three is enough to get
+unstuck twice and still keep one for the part that actually goes wrong, and it
+turns the hint into a decision about *when* rather than a key to lean on. The
+counter sits in the bar at the top and turns amber on the last one.
+
+They do not come back. Losing a life gives you a fresh attempt but not a fresh
+set of hints, and undo cannot buy one back — either would make the limit a
+formality, since asking and then undoing would be free. Dismissing a hint and
+looking at it again before you move is free, though: the hint is bought for the
+turn, not for the keypress.
 
 It was a toggle to begin with, which meant one press left the arrow answering
 every turn for the rest of the level. That is the whole route again, just

@@ -54,6 +54,21 @@ public final class GameState {
     public static final int STARTING_LIVES = 3;
 
     /**
+     * Suggestions the player may ask for, per level.
+     *
+     * <p>They were unlimited, which quietly removed the puzzle: a player could
+     * ask every single turn and be walked to the exit a move at a time. A
+     * budget turns the hint into a decision about when to spend one rather than
+     * a button to lean on, and three is enough to get unstuck twice and still
+     * have one left for the part that actually goes wrong.
+     *
+     * <p>They do not come back. A life costs you a fresh attempt but not a
+     * fresh set of hints, and undo cannot buy one back, because either would
+     * make the budget a formality.
+     */
+    public static final int STARTING_HINTS = 3;
+
+    /**
      * How much longer than the straight-line route still counts as brisk.
      *
      * <p>Par is worked out from the level's own geometry rather than typed into
@@ -92,6 +107,10 @@ public final class GameState {
     boolean caught;
     int livesLeft = STARTING_LIVES;
     boolean runOver;
+
+    // Deliberately outside the undo history and outside respawn: see
+    // STARTING_HINTS for why a spent hint stays spent.
+    private int hintsLeft = STARTING_HINTS;
 
     /** A level with no guards, which is how most rule tests are set up. */
     public GameState(GameMap map, int sightRadius) {
@@ -459,6 +478,29 @@ public final class GameState {
 
     public int livesLeft() {
         return livesLeft;
+    }
+
+    /** How many suggestions are left on this level. */
+    public int hintsLeft() {
+        return hintsLeft;
+    }
+
+    /** Whether asking for a suggestion would get one. */
+    public boolean canSpendHint() {
+        return hintsLeft > 0 && !isAttemptOver();
+    }
+
+    /**
+     * Takes one hint from the budget.
+     *
+     * @return true if one was available, false if the player has run out
+     */
+    public boolean spendHint() {
+        if (!canSpendHint()) {
+            return false;
+        }
+        hintsLeft--;
+        return true;
     }
 
     public boolean isRunOver() {
