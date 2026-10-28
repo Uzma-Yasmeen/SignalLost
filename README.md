@@ -90,7 +90,7 @@ Tests:
 mvn -q test
 ```
 
-193 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
+200 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
 
@@ -555,6 +555,33 @@ Two things changed. `KeyBindingTest` now looks each key up in the `InputMap` and
 runs whatever it finds, exactly as a keypress does. And `bindKey` throws if a key
 is already bound, so the next version of this mistake fails loudly at startup
 instead of quietly at the keyboard.
+
+## Could this run on a phone?
+
+Yes, and the reason is the package split rather than any plan for it. Every
+external import across the 2,662 lines of game logic:
+
+```
+java.io.*            java.util.*
+java.nio.charset.*   java.util.function.*
+java.nio.file.*
+```
+
+All of that exists on Android — `java.nio.file` wants API 26, everything else
+is older, and records and switch expressions are desugared by the Android
+toolchain. Exactly one line would have to change: `ProgressStore.inUserHome`
+asks for a home directory, which a phone does not really have, so Android
+would hand it `context.getFilesDir()` instead. The constructor already takes a
+path, so nothing else moves.
+
+What would be rewritten is the 3,150 lines of Swing in `ui`, as a `Canvas`
+view with touch controls. A new front end, not a new game.
+
+That property is one `import` away from being lost forever, and nothing else
+would notice — a model class reaching for `java.awt.Color` because it is a
+handy way to hold a colour compiles fine and passes every other test.
+`ArchitectureTest` fails the build if any logic package imports Swing or AWT,
+and it was checked by planting such an import and watching it fail.
 
 ## Build notes
 
