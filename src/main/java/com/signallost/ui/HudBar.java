@@ -13,6 +13,9 @@ import java.awt.RenderingHints;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * The strip above the map: who you are playing as, the level, the turn counter,
@@ -22,6 +25,9 @@ import java.awt.geom.RoundRectangle2D;
 public final class HudBar extends JPanel {
 
     private static final int HEIGHT = 54;
+
+    /** Clear space kept between the player's name and the turn counter. */
+    private static final int GAP_BESIDE_NAME = 16;
 
     /** Marks drawn on a chip's dot, so chips read at a glance. */
     private enum Glyph { DOT, DIAMOND }
@@ -66,7 +72,11 @@ public final class HudBar extends JPanel {
 
         g.setColor(Palette.TEXT_DIM);
         g.setFont(Fonts.body(12f));
-        g.drawString(prettyLevelName() + "  ·  SIGHT " + state.fog().sightRadius(), 62, 43);
+        g.drawString(levelAndSight(), 62, 43);
+    }
+
+    private String levelAndSight() {
+        return prettyLevelName() + "  ·  SIGHT " + state.fog().sightRadius();
     }
 
     /** Turns a resource name like "level1" into "LEVEL 1" for display. */
@@ -74,32 +84,81 @@ public final class HudBar extends JPanel {
         return levelName.replaceAll("(?<=\\D)(?=\\d)", " ").toUpperCase();
     }
 
-    private void drawRightHandStats(Graphics2D g) {
-        int x = getWidth() - 18;
+    /**
+     * A chip waiting to be drawn, and how readily it gives up its place.
+     *
+     * <p>{@code rank} is the order they survive in when the bar is too narrow
+     * for all of them: lowest goes first. The developer lamp is the first thing
+     * nobody needs; the key count is the last.
+     */
+    private record Chip(String label, Color colour, Glyph glyph, int rank) {
+    }
 
+    /**
+     * Chips are laid out right to left and the turn counter takes whatever is
+     * left over, which used to mean it had no lower bound at all — adding one
+     * more chip slid the counter straight through the player's name. So the row
+     * is measured against the space actually available first, and the least
+     * important chips drop off until it fits.
+     */
+    private void drawRightHandStats(Graphics2D g) {
+        List<Chip> chips = new ArrayList<>();
         if (state.fog().isRevealAll()) {
-            x = drawChip(g, x, "DEV REVEAL", Palette.ACCENT, Glyph.DOT);
+            chips.add(new Chip("DEV REVEAL", Palette.ACCENT, Glyph.DOT, 1));
         }
         if (state.wasSpotted()) {
-            x = drawChip(g, x, "SPOTTED", Palette.DANGER, Glyph.DOT);
+            chips.add(new Chip("SPOTTED", Palette.DANGER, Glyph.DOT, 5));
         }
         GuardMode alert = state.highestAlertLevel();
         if (alert != null && alert != GuardMode.PATROL) {
-            x = drawChip(g, x, alert.label().toUpperCase(), alertColour(alert), Glyph.DOT);
+            chips.add(new Chip(alert.label().toUpperCase(), alertColour(alert), Glyph.DOT, 4));
         }
         if (state.sightings() > 0) {
-            x = drawChip(g, x, "SEEN " + state.sightings(), Palette.GUARD_ALERT, Glyph.DOT);
+            // Sightings cost stars, so they outrank the undo depth, which is trivia.
+            chips.add(new Chip("SEEN " + state.sightings(), Palette.GUARD_ALERT, Glyph.DOT, 3));
         }
         if (state.canUndo()) {
-            x = drawChip(g, x, "UNDO " + state.undoDepth(), Palette.ACCENT, Glyph.DOT);
+            chips.add(new Chip("UNDO " + state.undoDepth(), Palette.ACCENT, Glyph.DOT, 2));
         }
-        x = drawChip(g, x, livesLabel(), livesColour(), Glyph.DOT);
-        x = drawChip(g, x, hintsLabel(), hintsColour(), Glyph.DOT);
-        x = drawChip(g, x,
-                "KEYS " + state.keysHeld() + "/" + state.keysRequired(),
-                state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY,
-                Glyph.DIAMOND);
+        chips.add(new Chip(livesLabel(), livesColour(), Glyph.DOT, 7));
+        chips.add(new Chip(hintsLabel(), hintsColour(), Glyph.DOT, 6));
+        chips.add(new Chip("KEYS " + state.keysHeld() + "/" + state.keysRequired(),
+                state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY, Glyph.DIAMOND, 8));
+
+        int room = getWidth() - 18 - identityRightEdge(g) - GAP_BESIDE_NAME - turnCounterWidth(g);
+        while (chips.size() > 1 && rowWidth(g, chips) > room) {
+            chips.remove(chips.stream()
+                    .min(Comparator.comparingInt(Chip::rank))
+                    .orElseThrow());
+        }
+
+        int x = getWidth() - 18;
+        for (Chip chip : chips) {
+            x = drawChip(g, x, chip.label(), chip.colour(), chip.glyph());
+        }
         drawTurnCounter(g, x);
+    }
+
+    private int rowWidth(Graphics2D g, List<Chip> chips) {
+        int total = 0;
+        for (Chip chip : chips) {
+            total += chipWidth(g, chip.label()) + 10;
+        }
+        return total;
+    }
+
+    private int chipWidth(Graphics2D g, String label) {
+        g.setFont(Fonts.bodyBold(11f));
+        return g.getFontMetrics().stringWidth(label) + 16 + 22;
+    }
+
+    /** Where the name and level line stop, so nothing is drawn on top of them. */
+    private int identityRightEdge(Graphics2D g) {
+        g.setFont(Fonts.display(17f));
+        int name = g.getFontMetrics().stringWidth(critter.displayName());
+        g.setFont(Fonts.body(12f));
+        int beneath = g.getFontMetrics().stringWidth(levelAndSight());
+        return 62 + Math.max(name, beneath);
     }
 
     private String livesLabel() {
@@ -180,11 +239,26 @@ public final class HudBar extends JPanel {
      * <p>The number changes colour as the clock runs down, so the pressure is
      * felt on the glance rather than only on the arithmetic.
      */
-    private void drawTurnCounter(Graphics2D g, int rightEdge) {
-        String number = state.hasTurnLimit()
+    private String turnNumber() {
+        return state.hasTurnLimit()
                 ? state.turnsTaken() + "/" + state.turnLimit()
                 : String.valueOf(state.turnsTaken());
-        String label = state.hasTurnLimit() ? "TURNS LEFT " + state.turnsRemaining() : "TURNS";
+    }
+
+    private String turnLabel() {
+        return state.hasTurnLimit() ? "TURNS LEFT " + state.turnsRemaining() : "TURNS";
+    }
+
+    private int turnCounterWidth(Graphics2D g) {
+        g.setFont(Fonts.mono(22f));
+        int number = g.getFontMetrics().stringWidth(turnNumber());
+        g.setFont(Fonts.body(11f));
+        return Math.max(number, g.getFontMetrics().stringWidth(turnLabel()));
+    }
+
+    private void drawTurnCounter(Graphics2D g, int rightEdge) {
+        String number = turnNumber();
+        String label = turnLabel();
 
         g.setFont(Fonts.mono(22f));
         FontMetrics numberMetrics = g.getFontMetrics();
@@ -195,7 +269,9 @@ public final class HudBar extends JPanel {
         int labelWidth = labelMetrics.stringWidth(label);
 
         int blockWidth = Math.max(numberWidth, labelWidth);
-        int x = rightEdge - blockWidth;
+
+        // Never let the counter reach the name, however many chips are up.
+        int x = Math.max(rightEdge - blockWidth, identityRightEdge(g) + GAP_BESIDE_NAME);
 
         g.setColor(Palette.TEXT_DIM);
         g.drawString(label, x + (blockWidth - labelWidth) / 2, 43);
