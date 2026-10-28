@@ -1,55 +1,81 @@
 # Signal Lost
 
-A turn-based fog-of-war stealth strategy game in Java. You escape a facility you
-can only partly see: grab the key, reach the exit, and stay out of the guards'
-sight.
+**A turn-based stealth game in Java. You escape a facility you can only partly see.**
 
-Built step by step.
+![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
+![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-200%20passing-success)
+![No dependencies](https://img.shields.io/badge/runtime%20dependencies-none-blue)
+![Licence](https://img.shields.io/badge/licence-MIT-green)
 
-- **Step 1 — done.** The map, the BFS fog of war, and the game screen.
-- **Step 2 — done.** The Command pattern and the undo stack, plus six characters.
-- **Step 3 — done.** A\* pathfinding, patrolling and hunting guards, hints, and
-  pixel-art characters.
-- **Step 4 — done.** Being spotted, the red line-of-sight overlay, and the turn
-  limit.
-- **Step 5 — next.** A sentinel guard with a rotating vision cone.
+<p align="center">
+  <img src="docs/screens/02-explored.png" width="820"
+       alt="Part way through a level: a lit area around the player, a dimmer trail of remembered corridors, and black everywhere else.">
+</p>
 
-## Telling the player what the keys do
+Collect the keys, reach the exit, stay out of the guards' sight. You see only
+what your character can see — everything else is either a dim memory of
+somewhere you have already walked, or black. Patrollers follow fixed routes and
+raise an alarm when they spot you. A hunter answers that alarm, and it moves
+faster than you do, so running is not a plan; breaking its line of sight is.
 
-The control strip across the bottom names every key. It used to be dim grey on
-a dark bar, which drew the fair question of how anybody is supposed to know
-that `H` gives a hint — they were not, because the strip was legible only if
-you already knew to look at it. The keycaps are bright, the captions are
-full-strength text, and an accent line separates the strip from the board.
+Ten levels, six characters, three lives, and a star rating that rewards getting
+out quickly without being seen.
 
-**The window resizes and the board follows it.** Drag it, maximise it, and the
-tiles scale to whatever space there is, recomputed on every repaint. Every
-screen centres its content, so none of them cling to a corner of a large
-window.
+## What is worth looking at
 
-**Nothing calls `pack()` after the window is up.** Packing a maximised window
-resizes it to its preferred size, which un-maximises it — so every press of
-Enter threw the player out of full screen. Once a window is on screen its size
-belongs to the player, and the only thing worth doing automatically is growing
-it when a screen genuinely needs more room.
+- **The rules know nothing about the screen.** 2,662 lines of game logic
+  without a single reference to Swing or AWT — and
+  [a test](src/test/java/com/signallost/ArchitectureTest.java) that fails the
+  build if anybody adds one. The whole suite runs without opening a window, and
+  the same logic would run on a phone behind a new front end.
+- **Two searches, doing different jobs.** A breadth-first flood fill for the fog,
+  so sight bends around corners instead of shining through walls; A\* for the
+  hunter's chase. The hint system reuses that same pathfinder over a weighted
+  cost map, so what it suggests is a move that avoids being seen rather than the
+  shortest move.
+- **Undo that is exact.** Every turn is a `Command` holding immutable snapshots
+  of the guards, so `U` rewinds the patrol routes, the alarm, the sighting count
+  and the clock — not just the player.
+- **Levels proven winnable rather than hoped to be.** The game is fully
+  deterministic, so a breadth-first search of the entire game tree can answer
+  whether a winning line exists at all, and what the fastest one is. That is
+  where the star thresholds come from, and it is how two levels that were
+  quietly impossible got found.
+- **Pixel art as source code.** Every sprite is a 16×16 block of characters in a
+  `.java` file, coloured by the character that owns it, so a new animal is a
+  block of text that shows up properly in a diff.
 
-It was fixed at whatever size `pack()` chose, and not resizable at all. On a
-screen shorter than that, the control strip sat below the display with no way
-to reach it — and the fix I reached for first was shrinking the tiles, which
-solved the window by ruining the puzzle. The board is the game; the window
-should bend around it.
+## Screenshots
 
-## The screens
+<table>
+<tr>
+<td width="33%"><img src="docs/screens/03-spotted.png" alt="A guard's line of sight drawn in red across the corridor the player is standing in."></td>
+<td width="33%"><img src="docs/screens/04-hint.png" alt="The suggested next move, marked on the board."></td>
+<td width="33%"><img src="docs/screens/09-level-select.png" alt="A grid of level boxes, each showing the stars earned on it."></td>
+</tr>
+<tr>
+<td><strong>Spotted.</strong> A patroller's line of sight is drawn in red, the
+alarm goes up, and a hunter starts moving towards where you were seen.</td>
+<td><strong>A hint, for one turn.</strong> One clever move — away from a
+hunter, or on towards a key — never the whole route, and it expires as soon as
+you move, so it cannot walk the level for you.</td>
+<td><strong>Progress.</strong> Stars per level, saved per player name, with
+later levels unlocked by the stars you have collected.</td>
+</tr>
+</table>
 
+Every image here is a render of the real interface, produced by `ScreenshotTool`
+rather than captured by hand, and the walks in them are driven by A\* rather
+than hard-coded key presses — so they keep working when a level gets redrawn.
+The full set, including the escape screen, a capture, the character roster and
+four level shapes with the fog lifted, is in [docs/screens](docs/screens).
+Regenerate it with:
+
+```bash
+mvn -q test-compile
+java -cp "target/classes;target/test-classes" com.signallost.tools.ScreenshotTool docs/screens
 ```
-home  ->  name  ->  character  ->  level select  ->  the level
-                                        ^                |
-                                        +----- Esc ------+
-```
-
-Esc steps back one screen at a time, so nowhere is a dead end. The home screen
-greets a returning player by name with their star count, because a game that
-opens straight into a text box tells you nothing about itself.
 
 ## Running it
 
@@ -93,6 +119,18 @@ mvn -q test
 200 tests, covering visibility, fog memory, movement, undo, pathfinding, guard
 behaviour, the alarm, capture, lives, keys, scoring, hints, spotting, the turn
 limit, level integrity and the window's select-to-level wiring.
+
+## Screen flow
+
+```
+home  ->  name  ->  character  ->  level select  ->  the level
+                                        ^                |
+                                        +----- Esc ------+
+```
+
+Esc steps back one screen at a time, so nowhere is a dead end. The home screen
+greets a returning player by name with their star count, because a game that
+opens straight into a text box tells you nothing about itself.
 
 ## How the code is laid out
 
@@ -478,38 +516,30 @@ sharp. Delete them and the built-in sprites come back.
 The level itself stays dark on purpose: the fog is the game, and it only works in
 the dark. The characters are where the colour goes.
 
-## Screens
+## Telling the player what the keys do
 
-Renders of the real UI, produced by `ScreenshotTool` rather than captured by
-hand, are in [docs/screens](docs/screens):
+The control strip across the bottom names every key. It used to be dim grey on
+a dark bar, which drew the fair question of how anybody is supposed to know
+that `H` gives a hint — they were not, because the strip was legible only if
+you already knew to look at it. The keycaps are bright, the captions are
+full-strength text, and an accent line separates the strip from the board.
 
-- `00-character-select.png` — the roster
-- `01-start.png` — the opening position, sight hugging the corner
-- `02-explored.png` — part way in, with a trail of remembered tiles
-- `03-spotted.png` — caught, with the alarm up and a hunter answering it
-- `04-hint.png` — the suggested route, routing around guard sight
-- `05-dev-reveal.png` — the whole map with every guard, used to check the logic
-- `06-caught.png` — a hunter reached the player; a life gone, two left
-- `07-escaped.png` — the escape screen, with the rating
-- `08-name.png` — who is playing
-- `09-level-select.png` — the level boxes and the stars on them
+**The window resizes and the board follows it.** Drag it, maximise it, and the
+tiles scale to whatever space there is, recomputed on every repaint. Every
+screen centres its content, so none of them cling to a corner of a large
+window.
 
-The walks are driven by A\*, not hard-coded key presses, so they keep working
-when the level is redrawn. Regenerate with:
+**Nothing calls `pack()` after the window is up.** Packing a maximised window
+resizes it to its preferred size, which un-maximises it — so every press of
+Enter threw the player out of full screen. Once a window is on screen its size
+belongs to the player, and the only thing worth doing automatically is growing
+it when a screen genuinely needs more room.
 
-```bash
-mvn -q test-compile
-java -cp "target/classes;target/test-classes" com.signallost.tools.ScreenshotTool docs/screens
-```
-
-## Still to build
-
-| Step | What it adds |
-| --- | --- |
-| 5 | A sentinel guard with a rotating vision cone |
-| 6 | More levels, and a title screen |
-| 7 | SRS document and UML class and sequence diagrams |
-| 8 | Phase 2: a Spring Boot and PostgreSQL leaderboard with a daily level |
+It was fixed at whatever size `pack()` chose, and not resizable at all. On a
+screen shorter than that, the control strip sat below the display with no way
+to reach it — and the fix I reached for first was shrinking the tiles, which
+solved the window by ruining the puzzle. The board is the game; the window
+should bend around it.
 
 ## Proving it is actually playable
 
@@ -582,6 +612,27 @@ would notice — a model class reaching for `java.awt.Color` because it is a
 handy way to hold a colour compiles fine and passes every other test.
 `ArchitectureTest` fails the build if any logic package imports Swing or AWT,
 and it was checked by planting such an import and watching it fail.
+
+## How it was built
+
+In order, each step working before the next one started:
+
+- **Step 1 — done.** The map, the BFS fog of war, and the game screen.
+- **Step 2 — done.** The Command pattern and the undo stack, plus six characters.
+- **Step 3 — done.** A\* pathfinding, patrolling and hunting guards, hints, and
+  pixel-art characters.
+- **Step 4 — done.** Being spotted, the red line-of-sight overlay, and the turn
+  limit.
+- **Step 6 — done**, ahead of step 5. Ten levels, the home screen, player names,
+  and stars saved per player.
+
+## Still to build
+
+| Step | What it adds |
+| --- | --- |
+| 5 | A sentinel guard with a rotating vision cone |
+| 7 | SRS document and UML class and sequence diagrams |
+| 8 | Phase 2: a Spring Boot and PostgreSQL leaderboard with a daily level |
 
 ## Build notes
 
