@@ -74,8 +74,16 @@ ${blocks.map(b => `<h2>${b.name}</h2>\n<div class="d mermaid" data-name="${b.nam
   // Every diagram type needs useMaxWidth off, not just the two obvious ones:
   // a type left out renders at width="100%" with no height and collapses to
   // nothing, which mermaid.render reports as a success.
+  // The report is printed on A4, so a diagram gets about 6 inches of width.
+  // At Mermaid's default font a wide diagram lands at two or three point,
+  // which is ink rather than information. A larger base font grows the text
+  // faster than the padding around it, so the labels survive the reduction.
   mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose',
-                       flowchart: { useMaxWidth: false }, sequence: { useMaxWidth: false },
+                       fontSize: 22,
+                       themeVariables: { fontSize: '22px' },
+                       flowchart: { useMaxWidth: false, nodeSpacing: 30, rankSpacing: 40 },
+                       sequence: { useMaxWidth: false, actorFontSize: 20, noteFontSize: 18,
+                                   messageFontSize: 18, boxTextMargin: 4, actorMargin: 40 },
                        state: { useMaxWidth: false }, class: { useMaxWidth: false },
                        er: { useMaxWidth: false }, gantt: { useMaxWidth: false } });
   (async () => {

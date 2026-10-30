@@ -470,66 +470,39 @@ time the turn ends.
 
 ```mermaid
 sequenceDiagram
-    actor Player
-    participant Frame as GameFrame
-    participant State as GameState
-    participant Turn as TurnCommand
-    participant Move as MoveCommand
-    participant GMove as GuardMoveCommand
-    participant Guard as Hunter
-    participant Behave as HuntBehaviour
-    participant AStar as AStarPathfinder
-    participant Alarm as AlarmCommand
-    participant Fog as FogOfWar
-    participant Panel as GamePanel
+    actor P as Player
+    participant F as GameFrame
+    participant S as GameState
+    participant T as TurnCommand
+    participant M as MoveCommand
+    participant G as GuardMoveCommand
+    participant A as AlarmCommand
 
-    Player->>Frame: presses an arrow key
-    Frame->>State: movePlayer(direction)
+    P->>F: arrow key
+    F->>S: movePlayer(direction)
+    S->>S: reject if wall, edge or guard
+    S->>T: new TurnCommand, execute()
+    activate T
+    T->>T: snapshot sightings and caught
+    T->>M: execute()
+    M-->>T: player moved, key taken
 
-    State->>State: reject if finished or attempt over
-    State->>State: reject if wall, edge, or guard
-
-    State->>Turn: new TurnCommand(state, MoveCommand)
-    State->>Turn: execute()
-    activate Turn
-
-    Turn->>Turn: snapshot sightings, spotted, failed, caught
-    Turn->>Move: execute()
-    Move-->>Turn: player moved, key collected if any
-
-    loop for each guard
-        Turn->>GMove: execute()
-        GMove->>Guard: state()
-        Note right of GMove: previous state kept for undo
-        GMove->>Guard: decideTurn(map, player)
-        Guard->>Behave: takeTurn(guard, state, map, player)
-        Behave->>AStar: findPath(map, from, target)
-        AStar-->>Behave: route
-        Behave-->>Guard: new GuardState
-        Guard-->>GMove: new GuardState
-        GMove->>Guard: applyState(new)
+    loop one per guard
+        T->>G: execute()
+        Note right of G: decideTurn delegates to the<br/>behaviour for its mode, which uses A*
+        G-->>T: previous GuardState kept for undo
     end
 
-    Turn->>Turn: settleEndOfTurn()
-    Turn->>State: any HUNT guard on the player? → caught
-    Turn->>State: isPlayerWatched()? → spotted, sightings++
-
-    alt spotted and not caught
-        Turn->>Alarm: execute()
-        loop for each guard
-            Alarm->>Guard: onAlarmRaised(state, sighting)
-            Guard-->>Alarm: HUNT state for hunters
-        end
+    T->>T: settleEndOfTurn()
+    alt player seen and not caught
+        T->>A: execute()
+        A-->>T: hunters switch to HUNT
     end
+    deactivate T
 
-    deactivate Turn
-    State->>State: history.push(turn)
-    State-->>Frame: true
-
-    Frame->>Fog: update(player)
-    Fog-->>Frame: visible and remembered tiles
-    Frame->>Panel: repaint()
-    Panel-->>Player: new board, fog, guards, alerts
+    S->>S: history.push(turn)
+    S-->>F: true
+    F->>F: fog.update(player), repaint()
 ```
 
 ### 5.4.2 Undoing a turn
@@ -618,51 +591,41 @@ The flow of one complete attempt at a level, from entering it to the rating.
 
 ```mermaid
 flowchart TD
-    START([Enter the level]) --> INIT[/"Place player, keys and guards<br/>Reset clock, 3 lives, 3 hints"/]
-    INIT --> FOG["Compute visible tiles<br/><i>breadth-first from the player</i>"]
-    FOG --> DRAW[/"Draw board, fog and status"/]
-    DRAW --> INPUT{"Player<br/>presses"}
+    START([Enter level]) --> INIT[/"Place player, keys, guards<br/>3 lives, 3 hints, clock reset"/]
+    INIT --> FOG["Breadth-first fog<br/>from the player"]
+    FOG --> INPUT{"Key pressed"}
 
-    INPUT -->|"U — undo"| UNDO["Pop the turn<br/>restore guards, alarm,<br/>sightings and clock"]
-    UNDO --> FOG
+    INPUT -->|U| UNDO["Pop turn, restore<br/>guards and clock"] --> FOG
+    INPUT -->|H| HINT{"Hints left?"}
+    HINT -->|yes| SHOW["Spend one,<br/>show one move"] --> FOG
+    HINT -->|no| FOG
+    INPUT -->|R| INIT
 
-    INPUT -->|"H — hint"| HINTCHK{"Hints<br/>left?"}
-    HINTCHK -->|no| DRAW
-    HINTCHK -->|yes| HINT["Spend one<br/>show a single move"]
-    HINT --> DRAW
+    INPUT -->|move| LEGAL{"Legal?"}
+    LEGAL -->|no| FOG
+    LEGAL -->|yes| MOVE["Move player,<br/>take any key"]
 
-    INPUT -->|"R — restart"| INIT
+    MOVE --> GUARDS["Every guard moves<br/>patrol · A* · search"]
+    GUARDS --> CAUGHT{"Hunter on<br/>the player?"}
 
-    INPUT -->|"move or wait"| LEGAL{"Legal<br/>move?"}
-    LEGAL -->|"wall, edge<br/>or guard"| DRAW
-    LEGAL -->|yes| MOVE["Move the player<br/>collect a key if present"]
-
-    MOVE --> GUARDS["Every guard takes its turn<br/><i>patrol route · A* pursuit · search</i>"]
-    GUARDS --> CAUGHT{"A hunting guard<br/>on the player?"}
-
-    CAUGHT -->|yes| LIFE["Lose a life"]
-    LIFE --> LIVES{"Lives<br/>remaining?"}
+    CAUGHT -->|yes| LIVES{"Lives left?"}
     LIVES -->|yes| INIT
-    LIVES -->|no| OVER([Run over — 0 stars])
+    LIVES -->|no| OVER([Run over])
 
-    CAUGHT -->|no| SEEN{"Player in any<br/>line of sight?"}
-    SEEN -->|yes| SIGHT["sightings++<br/>raise the alarm<br/><i>hunters switch to HUNT</i>"]
-    SEEN -->|no| CLOCK
-    SIGHT --> CLOCK{"Turn limit<br/>reached?"}
+    CAUGHT -->|no| SEEN{"In any<br/>line of sight?"}
+    SEEN -->|yes| SIGHT["sightings++<br/>raise alarm"] --> CLOCK
+    SEEN -->|no| CLOCK{"Turn limit?"}
 
-    CLOCK -->|yes| FAIL([Attempt failed])
-    CLOCK -->|no| EXIT{"On the exit<br/>with every key?"}
+    CLOCK -->|yes| FAIL([Failed])
+    CLOCK -->|no| EXIT{"On exit with<br/>all keys?"}
     EXIT -->|no| FOG
-    EXIT -->|yes| SCORE["Rate the run:<br/>1 star escaped<br/>+1 within par<br/>+1 never seen"]
-    SCORE --> SAVE[/"Save if better than<br/>this player's best"/]
-    SAVE --> DONE([Escaped])
+    EXIT -->|yes| SCORE["Rate: escaped +1<br/>within par +1<br/>unseen +1"] --> DONE([Escaped])
 
     style START fill:#dcfce7,stroke:#16a34a
     style DONE fill:#dcfce7,stroke:#16a34a
     style OVER fill:#fee2e2,stroke:#dc2626
     style FAIL fill:#fee2e2,stroke:#dc2626
     style SIGHT fill:#fef3c7,stroke:#d97706
-    style LIFE fill:#fee2e2,stroke:#dc2626
 ```
 
 ---

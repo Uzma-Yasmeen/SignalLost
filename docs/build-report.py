@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_SECTION
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
@@ -32,7 +32,13 @@ MAIN_PT = 16          # main headings, centred
 SUB_PT = 14           # subheadings, left
 BODY_PT = 12          # body, justified
 TABLE_PT = 10.5       # tables need to fit the page
-PAGE_WIDTH_IN = 6.27  # A4 less one-inch margins
+PAGE_WIDTH_IN = 6.27        # A4 portrait, less one-inch margins
+PORTRAIT_MAX_W = 6.27
+PORTRAIT_MAX_H = 5.4        # leaves room for the text that explains it
+FULL_PAGE_H = 8.9           # a tall diagram on a page of its own
+LANDSCAPE_MAX_W = 9.2       # A4 turned sideways, less margins
+LANDSCAPE_MAX_H = 6.0
+MIN_LABEL_PT = 6.0          # below this a printed diagram is unreadable
 
 # Title page, from the template. Each entry is (text, size, bold, space_after).
 TITLE_PAGE = [
@@ -151,15 +157,47 @@ def add_table(doc, rows):
     return table
 
 
+def set_orientation(section, landscape: bool):
+    """A4 either way round. Word needs the page size swapped as well as the flag."""
+    short, long_ = Inches(8.27), Inches(11.69)
+    section.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
+    section.page_width = long_ if landscape else short
+    section.page_height = short if landscape else long_
+    for margin in ("top_margin", "bottom_margin", "left_margin", "right_margin"):
+        setattr(section, margin, Inches(1))
+
+
+def label_points(logical_px_wide: float, printed_inches: float) -> float:
+    """Roughly what the 22px Mermaid labels come out as once printed."""
+    return 22 / (logical_px_wide / printed_inches) * 72
+
+
 def add_image(doc, path: Path, caption: str | None = None):
+    """Places an image at a size where its labels can actually be read.
+
+    A diagram shrunk to save a page is ink rather than information. Anything
+    that would print below about six point goes on a page of its own, turned
+    sideways when it is wider than it is tall.
+    """
     from PIL import Image
     with Image.open(path) as im:
-        w, h = im.size
-    width = min(PAGE_WIDTH_IN, PAGE_WIDTH_IN)
-    # Keep tall diagrams on one page: cap the height at roughly half a page.
-    height = width * h / w
-    if height > 7.5:
-        width = width * 7.5 / height
+        px_w, px_h = im.size
+    logical_w = px_w / 2                       # exported at 2x
+    aspect = px_w / px_h
+
+    width = min(PORTRAIT_MAX_W, PORTRAIT_MAX_H * aspect)
+    landscape = False
+
+    if label_points(logical_w, width) < MIN_LABEL_PT:
+        if aspect > 1.25:                      # wide: turn the page sideways
+            landscape = True
+            width = min(LANDSCAPE_MAX_W, LANDSCAPE_MAX_H * aspect)
+        else:                                  # tall: give it a full page
+            width = min(PORTRAIT_MAX_W, FULL_PAGE_H * aspect)
+
+    if landscape:
+        set_orientation(doc.add_section(WD_SECTION.NEW_PAGE), True)
+
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(6)
@@ -168,6 +206,9 @@ def add_image(doc, path: Path, caption: str | None = None):
     if caption:
         body(doc, caption, size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER,
              space_after=12, italic_all=True)
+
+    if landscape:
+        set_orientation(doc.add_section(WD_SECTION.NEW_PAGE), False)
 
 
 def split_row(line):
