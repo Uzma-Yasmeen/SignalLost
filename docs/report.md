@@ -383,7 +383,7 @@ test rather than left as a convention.
 
 | Addresses | Proposed solution | Enforced by |
 | --- | --- | --- |
-| E1 | Strict separation of rules from presentation. All 2,662 lines of game logic reside in six packages that reference no user-interface type whatsoever. | `ArchitectureTest` fails the build on any such import |
+| E1 | Strict separation of rules from presentation. All 2,704 lines of game logic reside in six packages that reference no user-interface type whatsoever. | `ArchitectureTest` fails the build on any such import |
 | E2 | A discrete, deterministic turn model. State advances only when the player acts, by whole tiles, with no dependence on elapsed time. Identical input yields identical output. | `TurnWithGuardsTest` |
 | E3 | Design patterns applied where they carry weight: Command for turns, Strategy for behaviours, State for modes, Observer for the alarm, Factory for construction. Each is an identifiable set of classes, not a dispersed convention. | Section 5.3 |
 | E4 | Visibility as breadth-first traversal of the grid graph rather than ray casting. Because the fill propagates between adjacent tiles, it cannot leak through diagonal gaps, and a wall adjacent to a lit tile is lit as part of the same pass. | `VisibilityServiceTest` |
@@ -416,3 +416,472 @@ rather than incrementally, which is more work per turn than an incremental
 scheme would require — a cost that is irrelevant at this grid size and would
 need revisiting at a substantially larger one. Both costs were accepted in
 exchange for the properties above.
+
+---
+
+## 5. System Design
+
+The diagrams in this section are generated from Mermaid source held in
+[`docs/uml.md`](uml.md), so they are version-controlled as text, appear
+meaningfully in a diff, and cannot silently drift away from the code they
+describe.
+
+### 5.1 System Architecture
+
+![System architecture](diagrams/5.1-system-architecture.png)
+
+The system is divided into two layers with a single permitted direction of
+dependency. The presentation layer reads game state and forwards input; the
+rules layer knows nothing of it.
+
+This is not a convention but an enforced invariant. `ArchitectureTest` scans
+every source file in the six rule packages and fails the build if any of them
+imports `java.awt`, `javax.swing` or `java.applet`. The constraint was added
+after observing how easily it could be lost: a single model class reaching for
+`java.awt.Color` because it is a convenient way to hold a colour would compile,
+pass every other test, and permanently weld the rules to the desktop.
+
+Two consequences follow. First, the whole test suite runs headless, which is why
+205 tests complete in seconds. Second, relocating the game to another platform
+means writing a new presentation layer rather than a new game.
+
+### 5.2 Use Case Diagram
+
+![Use case diagram](diagrams/5.2-use-case-diagram.png)
+
+The player is the only human actor. Guards are modelled as a system actor
+because their behaviour is autonomous: they act every turn without the player
+invoking them, and two of the most consequential events in the game — the alarm
+and a capture — originate with them.
+
+The `<<include>>` relationship from *Move or wait one turn* to *Advance every
+guard* captures the central rule of the game: there is no player action that
+does not also give every guard a move.
+
+### 5.3 Class Diagram
+
+The class model is presented in three parts for legibility. Together they cover
+every type in the rules layer.
+
+#### 5.3.1 Core model and the Command pattern
+
+![Core model and the Command pattern](diagrams/5.3.1-core-model-and-the-command-pattern.png)
+
+`GameState` holds the mutable position of play. Its mutable fields are
+package-private rather than private, so that only command objects in the same
+package may write to them — a deliberate narrowing of the write surface that the
+compiler enforces.
+
+The Command pattern is used at two levels. A `TurnCommand` represents one whole
+turn and owns the smaller commands that make it up: one `MoveCommand` for the
+player, one `GuardMoveCommand` for each guard, and an `AlarmCommand` if the
+player was seen. Because the composite holds its constituents, undoing a turn
+means undoing each part in reverse order, and nothing can be overlooked.
+
+#### 5.3.2 Guards: State, Strategy and Observer
+
+![Guards: State, Strategy and Observer](diagrams/5.3.2-guards-state-strategy-and-observer-together.png)
+
+Three patterns meet at the guard. `GuardMode` is the **State**, determining
+which behaviour applies. `GuardBehaviour` is the **Strategy**, with three
+stateless singleton implementations selected by that mode. `AlarmListener` is
+the **Observer**, through which one guard's sighting reaches every other guard
+without any of them holding a reference to the others.
+
+`GuardState` is an immutable record holding a guard's entire condition. A guard
+does not mutate itself; it computes a new state and has one applied. This is
+what makes undo exact: `GuardMoveCommand` keeps the previous record and restores
+it, rather than attempting to reverse each individual change.
+
+#### 5.3.3 Vision, levels and progress
+
+![Vision, levels and progress](diagrams/5.3.3-vision-levels-and-progress.png)
+
+`VisibilityService` is stateless and computes what is visible from a position.
+`FogOfWar` adds memory: it accumulates the set of explored tiles and classifies
+each as `VISIBLE`, `REMEMBERED` or `UNEXPLORED`. Separating the two keeps the
+geometry testable in isolation from the history.
+
+`LevelLoader` and `GuardFactory` form the Factory pattern, constructing a level
+and its guards from a text description so that adding a level requires no code
+change. `ProgressStore` is the only class in the rules layer that touches the
+filesystem, and it accepts its path from the caller rather than assuming one.
+
+### 5.4 Sequence Diagram
+
+#### 5.4.1 Taking one turn
+
+![Taking one turn](diagrams/5.4.1-one-turn.png)
+
+This is the system's principal flow. Its ordering is the source of the game's
+tension: the player acts, then every guard acts, and only afterwards is it
+determined whether the player was seen. Moving to a tile that is safe at the
+moment of departure is therefore no guarantee, because a guard may round a
+corner and be looking at that tile by the time the turn concludes.
+
+Detection is also evaluated after movement for a second reason — it allows a
+guard to be in a position it has only just reached, which a check performed
+before the guards moved could not express.
+
+#### 5.4.2 Undoing a turn
+
+![Undoing a turn](diagrams/5.4.2-undoing-a-turn.png)
+
+Undo pops the turn and reverses its parts in the opposite order to their
+execution: the alarm first, then each guard, then the player. The state of the
+world before the turn is not recomputed but restored from values captured at the
+time.
+
+One omission is deliberate: the hint budget is not restored. Were it refunded,
+three hints would be effectively unlimited, since a player could request one,
+undo, and repeat.
+
+#### 5.4.3 Detection and the alarm
+
+![Detection and the alarm](diagrams/5.4.3-being-seen-and-the-alarm-reaching-the-hunters.png)
+
+The alarm propagates by Observer. `AlarmCommand` notifies every guard; each
+decides for itself how to respond. Hunters enter HUNT mode with the sighting as
+their target; patrollers return themselves unchanged, since a patroller can
+raise an alarm but has no means of answering one. Every previous state is
+retained so the entire propagation is undoable.
+
+### 5.5 Activity Diagram
+
+![Activity diagram](diagrams/5.5-activity-diagram.png)
+
+The diagram traces one attempt at a level from entry to rating, including the
+branches for undo, hints and restart, and both failure paths — capture, which
+costs a life, and the turn limit, which ends the attempt outright.
+
+### 5.6 Guard State Machine
+
+![Guard state machine](diagrams/5.6-guard-state-machine.png)
+
+Drawn separately because its transitions are the part of the design most often
+specified incorrectly. Note in particular that only a guard in HUNT mode can
+capture the player. A patroller that walks into the player obstructs them and
+nothing more — a rule arrived at after the stricter alternative made a
+single-width corridor on level 1 impassable, and the level unwinnable.
+
+---
+
+## 6. Methodology
+
+### 6.1 Development approach
+
+An incremental approach was followed, with each increment producing a working
+program rather than a layer of an unfinished one. Eight increments were planned
+and six completed:
+
+| Increment | Delivered |
+| --- | --- |
+| 1 | Grid model, breadth-first fog of war, playable board |
+| 2 | Command pattern, undo stack, six characters |
+| 3 | A\* pathfinding, patrolling and hunting guards, hints |
+| 4 | Detection, line-of-sight overlay, turn limit |
+| 6 | Ten levels, title screen, player names, saved progress |
+| 7 | This report, the SRS, and the UML diagrams |
+
+Increment 5 — a sentinel guard with a rotating vision cone — was deferred in
+favour of increment 6, on the judgement that a complete and progressable game
+with two guard types demonstrates more than an incomplete one with three.
+Increment 8, the Spring Boot leaderboard, is phase 2.
+
+### 6.2 Version control
+
+Git throughout, with the repository published on GitHub. Thirty-eight commits,
+each confined to a single concern and carrying a message that states what
+changed and why. The history is itself a record of the development process.
+
+### 6.3 Testing strategy
+
+Testing proceeded on four levels, in increasing order of what they can establish:
+
+1. **Unit tests** over individual rules — visibility geometry, pathfinding,
+   scoring arithmetic.
+2. **Integration tests** over whole turns, in which the player acts, guards
+   respond and the outcome is asserted.
+3. **Property tests** over all ten levels at once: that every key is reachable,
+   that every watched tile has cover within reach, that three stars are
+   attainable.
+4. **Architectural tests** over the source itself, failing the build if the
+   dependency rule of Section 5.1 is violated.
+
+**An honest account of the order of events.** The sequence was frequently the
+reverse of the textbook one. Several of the most significant defects were found
+not by testing but by playing — a hunter that escorted the player rather than
+catching them, a level whose only key stood behind a door that never opened, a
+star rating that could not be achieved. In each case a test was written
+afterwards to close that class of fault permanently. The test suite is therefore
+better understood as an accumulated record of mistakes already made than as a
+specification written in advance. The property tests in level 3 above exist
+precisely because unit tests had proved unable to detect faults of that kind.
+
+### 6.4 Verification by exhaustive search
+
+Because the simulation is deterministic (NFR-4), the question *"can this level
+be won?"* is decidable rather than a matter of opinion. A solver was written
+that performs a breadth-first search over the entire game tree, with each state
+keyed by player position, turn count and the set of keys still uncollected.
+
+The solver established three things that testing had not:
+
+- **Level 1 was unwinnable** with both guards in place. No amount of play would
+  have distinguished this from a level that was merely difficult.
+- **The star thresholds were unreachable.** On level 1 the fastest escape took
+  38 turns and the fastest *unseen* escape took 56, against a par of 51 — so the
+  speed star and the stealth star mutually excluded each other, and three stars
+  was impossible by construction.
+- **The solver itself was twice wrong** before it was right. A depth-first
+  version memoised states without the turn count, which is unsound while a clock
+  is running. A later version keyed states on *how many* keys were held rather
+  than *which*, so holding the first key and holding the third appeared
+  identical and valid routes were pruned. Both versions confidently reported
+  winnable levels as lost.
+
+That last point is the most instructive result of the project. A verification
+tool is software, and is no more trustworthy than the software it verifies until
+it too has been checked.
+
+---
+
+## 7. Implementation
+
+### 7.1 Module organisation
+
+| Package | Lines | Responsibility |
+| --- | --- | --- |
+| `model` | 1,148 | Game state, the map, commands and the undo stack, scoring |
+| `guard` | 612 | Guard types, modes, behaviours, the alarm |
+| `level` | 258 | Level and catalogue loading from text |
+| `progress` | 284 | Player profiles and local persistence |
+| `pathfinding` | 213 | A\* search and route metrics |
+| `vision` | 189 | Visibility computation and fog memory |
+| **Rules total** | **2,704** | **No user-interface dependency** |
+| `ui` | — | Swing presentation: screens, board, sprites |
+
+### 7.2 Fog of war
+
+Visibility is a breadth-first flood fill from the player's tile, bounded by the
+sight radius and blocked by walls. Walls adjacent to a visible tile are marked
+visible in the same pass, so that rooms appear enclosed rather than open-edged.
+
+The choice of a flood fill over ray casting is deliberate. Because propagation
+occurs only between orthogonally adjacent tiles, visibility cannot leak through
+the diagonal gap between two wall corners — an artefact that ray-cast
+implementations must correct for explicitly. Sight bending around a corner is
+likewise a natural consequence of the traversal rather than a special case.
+
+### 7.3 Pathfinding
+
+A\* over the grid graph, with a Manhattan-distance heuristic — admissible for
+four-directional movement — and a priority queue ordered by estimated total
+cost. Ties are broken deterministically so that identical situations always
+resolve identically, as NFR-4 requires.
+
+A second overload accepts a cost function per tile, which is used by the hint
+system rather than by the guards: tiles under observation are assigned a higher
+traversal cost, and tiles near a hunting guard higher still, so the route
+returned is one that avoids being seen rather than the one that is shortest.
+
+### 7.4 The hunter's pursuit
+
+A hunter moving at exactly the player's speed can never close a gap. The first
+implementation did precisely this, with the result that a chase froze at
+whatever separation it began with and the hunter appeared to accompany the
+player rather than pursue them.
+
+The correction was to let a hunter take two steps on alternate turns, giving a
+net gain of half a tile per turn. The consequence for play is the intended one:
+fleeing in a straight line is arithmetic the player loses, while breaking line
+of sight succeeds. A flat two-step hunter was tried first and proved
+unsurvivable — capture arrived in four turns where the nearest cover was five
+away.
+
+### 7.5 Undo
+
+Every turn is a `TurnCommand` holding a `MoveCommand`, one `GuardMoveCommand`
+per guard, and an `AlarmCommand` where one was raised. Each sub-command retains
+the state it replaced; guards retain an immutable `GuardState` record capturing
+position, mode, route index, last-known player position, remaining alert turns
+and surge status.
+
+Undo therefore restores the guards, the alarm, the sighting count, the keys and
+the clock — not merely the player's position. The property that makes this exact
+is that guards are never mutated field by field, only replaced wholesale.
+
+### 7.6 Persistence
+
+Progress is stored as a Java properties file under the user's home directory,
+keyed by player name, holding the best result achieved on each level. Writing is
+a merge rather than an overwrite, so one player's progress cannot disturb
+another's. A file that is missing, empty or malformed is treated as "no
+progress" rather than surfaced as an error.
+
+`ProgressStore` accepts its path from the caller — `inUserHome()` is a
+convenience, not an assumption — so a platform with no home directory can supply
+its own location without modification.
+
+### 7.7 Artwork
+
+All sprites are 16×16 pixel art written as arrays of strings in Java source,
+where each character names a colour supplied by the character that owns the
+sprite. One grid therefore produces a ginger cat and a pink rabbit from the same
+shape data. Artwork lives in the repository as readable text, appears
+meaningfully in a diff, and can be reviewed like any other source. Sprites are
+snapped to whole screen pixels before being centred, since scaling pixel art by
+a fractional factor is what makes it look wrong.
+
+### 7.8 Output Screenshots
+
+All images are renders of the running interface produced by a tool that drives
+the real game with A\* rather than scripted keystrokes, so they cannot fall out
+of step with the build.
+
+![The title screen](screens/13-title.png)
+**Figure 7.1 — Title screen.** A returning player is greeted by name with their
+star total.
+
+![Character selection](screens/00-character-select.png)
+**Figure 7.2 — Character selection.** Six characters, each 16×16 pixel art
+written as text in the source.
+
+![Level selection](screens/09-level-select.png)
+**Figure 7.3 — Level selection.** Levels unlock against accumulated stars; each
+box shows the best rating achieved on it.
+
+![The opening position](screens/01-start.png)
+**Figure 7.4 — The opening position.** Almost the entire map is unexplored;
+sight hugs the corner of the starting corridor.
+
+![Part way through](screens/02-explored.png)
+**Figure 7.5 — Part way through.** Bright tiles are currently visible, dim tiles
+are remembered terrain, black is unexplored.
+
+![Spotted](screens/03-spotted.png)
+**Figure 7.6 — Spotted.** The guard's line of sight is drawn in red, the alarm
+is raised, and a hunter begins moving towards the sighting.
+
+![A hint](screens/04-hint.png)
+**Figure 7.7 — A hint.** One suggested move, shown for a single turn, routed to
+avoid observation rather than to be shortest.
+
+![Captured](screens/06-caught.png)
+**Figure 7.8 — Captured.** A hunting guard reached the player; one life is
+spent, two remain.
+
+![Escaped](screens/07-escaped.png)
+**Figure 7.9 — Escaped.** The rating screen, showing turns taken against par and
+the resulting stars.
+
+![Developer reveal](screens/05-dev-reveal.png)
+**Figure 7.10 — Developer reveal.** The whole map with every guard shown, used
+to verify guard behaviour against expectation.
+
+---
+
+## 8. Conclusion
+
+### 8.1 Summary of work
+
+Signal Lost was delivered as a complete, playable turn-based stealth game in
+Java, comprising ten levels, six characters, two guard types with a three-mode
+state machine, exact undo, a limited hint system, star-based scoring, star-gated
+level progression and per-player local persistence. The rules occupy 2,704 lines
+across six packages and are verified by 205 automated tests in 25 test classes.
+
+All seven objectives stated in Section 2.2 were met. Fog of war is implemented
+as a bounded breadth-first flood fill; pursuit uses A\* with a Manhattan
+heuristic and a priority queue; five design patterns are applied where they
+carry structural weight; the separation of rules from presentation is enforced
+by an automated test rather than by convention; behaviour is verified by test;
+playability is verified by exhaustive search; and the result is a finished
+product rather than a demonstration.
+
+### 8.2 What the project demonstrates
+
+Three results are worth drawing out.
+
+**An architectural rule that nothing enforces will not survive.** The separation
+between rules and presentation is the project's most valuable property — it is
+why the tests run headless, and why the game could be moved to another platform
+by replacing only its upper layer. It is also a property that one convenient
+import would destroy silently. Writing a test that fails the build on such an
+import converts an intention into a guarantee.
+
+**Passing tests and a working game are different claims.** The project's most
+instructive defect was a level that could not be won while every test passed,
+because the tests verified that each rule behaved correctly and nothing verified
+that the game those rules composed was completable. Determinism made the
+stronger claim checkable: the entire game tree could be searched, and the
+question answered rather than estimated.
+
+**Tools require verification too.** The solver written to validate the levels
+was itself wrong twice, in each case reporting winnable levels as unwinnable.
+Had its conclusions been accepted uncritically, correct levels would have been
+redesigned to fix a fault that did not exist.
+
+### 8.3 Limitations
+
+Recorded in full in Section 6 of the accompanying SRS, and summarised here:
+
+- The sentinel guard with a rotating vision cone, one of three guard types in
+  the original proposal, is not implemented.
+- No performance budget is stated or measured; NFR-1 is asserted rather than
+  verified.
+- Nothing in the game teaches its rules. The controls are named on screen, but a
+  new player learns that red tiles are observed, that only hunters capture, and
+  how stars are earned by being caught.
+- No accessibility conformance is claimed. In particular, the line-of-sight
+  overlay conveys meaning by colour alone.
+- Automated testing of the presentation layer is limited to navigation and key
+  bindings; nothing verifies what is drawn.
+
+### 8.4 Future work
+
+| | Work |
+| --- | --- |
+| Near term | The sentinel guard; an in-game tutorial addressing the third limitation above; a colour-blind-safe treatment of the line-of-sight overlay |
+| Phase 2 | The Spring Boot and PostgreSQL leaderboard with daily levels. `Score` and `LevelResult` are already plain data records for this purpose |
+| Longer term | An Android port. Because the rules import no user-interface type, this requires a new presentation layer rather than a new game; the only rules-layer change identified is supplying `ProgressStore` with a platform-appropriate path |
+
+---
+
+## 9. References
+
+1. Hart, P. E., Nilsson, N. J. and Raphael, B. (1968). "A Formal Basis for the
+   Heuristic Determination of Minimum Cost Paths." *IEEE Transactions on Systems
+   Science and Cybernetics*, 4(2), pp. 100–107. — the A\* algorithm used for
+   guard pursuit.
+
+2. Dijkstra, E. W. (1959). "A Note on Two Problems in Connexion with Graphs."
+   *Numerische Mathematik*, 1(1), pp. 269–271. — the shortest-path foundation
+   from which A\* extends.
+
+3. Gamma, E., Helm, R., Johnson, R. and Vlissides, J. (1994). *Design Patterns:
+   Elements of Reusable Object-Oriented Software*. Addison-Wesley. — the
+   Command, Strategy, State, Observer and Factory patterns applied in Section 5.3.
+
+4. IEEE Std 830-1998. *IEEE Recommended Practice for Software Requirements
+   Specifications*. Institute of Electrical and Electronics Engineers. — the
+   structure followed by the accompanying SRS.
+
+5. Oracle Corporation. *Java SE 17 Documentation*.
+   https://docs.oracle.com/en/java/javase/17/
+
+6. The JUnit Team. *JUnit 5 User Guide*. https://junit.org/junit5/docs/current/user-guide/
+
+7. The Apache Software Foundation. *Apache Maven*. https://maven.apache.org/
+
+8. Mermaid. *Diagramming and charting tool*. https://mermaid.js.org/ — used to
+   generate the diagrams in Section 5 from version-controlled text.
+
+9. Yasmeen, U. (2026). *Signal Lost — source repository*.
+   https://github.com/Uzma-Yasmeen/SignalLost
+
+10. Yasmeen, U. (2026). *Signal Lost — Software Requirements Specification*.
+    Held in the repository as `docs/srs.md`.
+
+11. *Signal Lost: A Fog-of-War Stealth Strategy Game* — project proposal
+    document, the brief against which this work was undertaken.

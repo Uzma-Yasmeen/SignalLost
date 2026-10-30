@@ -87,7 +87,7 @@ The software is organised in two layers, and the boundary between them is a
 requirement in its own right (NFR-2):
 
 - **The rules.** Six packages — `model`, `vision`, `pathfinding`, `guard`,
-  `level`, `progress` — holding every decision the game makes. 2,662 lines with
+  `level`, `progress` — holding every decision the game makes. 2,704 lines with
   no reference to Swing or AWT.
 - **The interface.** One package, `ui`, which draws the rules and sends player
   input to them, and is the only part that knows a screen exists.

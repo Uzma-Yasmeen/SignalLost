@@ -7,7 +7,7 @@ What an Android port would and would not have to change, and how the project got
 ## Could this run on a phone?
 
 Yes, and the reason is the package split rather than any plan for it. Every
-external import across the 2,662 lines of game logic:
+external import across the 2,704 lines of game logic:
 
 ```
 java.io.*            java.util.*
