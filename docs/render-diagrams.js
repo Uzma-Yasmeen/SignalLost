@@ -108,6 +108,49 @@ ${blocks.map(b => `<h2>${b.name}</h2>\n<div class="d mermaid" data-name="${b.nam
       failures.length ? (ok + '/' + nodes.length + ' rendered — ' + failures.length + ' FAILED')
                       : (ok + '/' + nodes.length + ' rendered, no errors');
   })();
+
+  /**
+   * Rasterises each diagram and posts it to diagram-server.py, which writes the
+   * PNG to docs/diagrams. Drawn at 2x on white, because the report prints and a
+   * transparent background turns to black in some Word themes.
+   */
+  window.exportAll = async function (scale = 2) {
+    const saved = [];
+    for (const node of document.querySelectorAll('.mermaid')) {
+      const svg = node.querySelector('svg');
+      if (!svg) { saved.push({ name: node.dataset.name, error: 'no svg' }); continue; }
+
+      const box = svg.getBoundingClientRect();
+      const clone = svg.cloneNode(true);
+      clone.setAttribute('width', box.width);
+      clone.setAttribute('height', box.height);
+      const markup = new XMLSerializer().serializeToString(clone);
+      const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(markup)));
+
+      const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('could not load the svg'));
+        img.src = url;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(box.width * scale);
+      canvas.height = Math.round(box.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const response = await fetch('/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: node.dataset.name, dataUrl: canvas.toDataURL('image/png') })
+      });
+      saved.push(await response.json());
+    }
+    return saved;
+  };
 </script>
 </body>
 </html>`;
