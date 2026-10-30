@@ -17,12 +17,12 @@ import sys
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+from PIL import Image
 
 DOCS = Path(__file__).resolve().parent
 REPORT = DOCS / "report.md"
@@ -36,8 +36,7 @@ PAGE_WIDTH_IN = 6.27        # A4 portrait, less one-inch margins
 PORTRAIT_MAX_W = 6.27
 PORTRAIT_MAX_H = 5.4        # leaves room for the text that explains it
 FULL_PAGE_H = 8.9           # a tall diagram on a page of its own
-LANDSCAPE_MAX_W = 9.2       # A4 turned sideways, less margins
-LANDSCAPE_MAX_H = 6.0
+ROTATED_MAX_H = 8.6         # a turned figure uses the page's height
 MIN_LABEL_PT = 6.0          # below this a printed diagram is unreadable
 
 # Title page, from the template. Each entry is (text, size, bold, space_after).
@@ -157,16 +156,6 @@ def add_table(doc, rows):
     return table
 
 
-def set_orientation(section, landscape: bool):
-    """A4 either way round. Word needs the page size swapped as well as the flag."""
-    short, long_ = Inches(8.27), Inches(11.69)
-    section.orientation = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
-    section.page_width = long_ if landscape else short
-    section.page_height = short if landscape else long_
-    for margin in ("top_margin", "bottom_margin", "left_margin", "right_margin"):
-        setattr(section, margin, Inches(1))
-
-
 def label_points(logical_px_wide: float, printed_inches: float) -> float:
     """Roughly what the 22px Mermaid labels come out as once printed."""
     return 22 / (logical_px_wide / printed_inches) * 72
@@ -179,36 +168,48 @@ def add_image(doc, path: Path, caption: str | None = None):
     that would print below about six point goes on a page of its own, turned
     sideways when it is wider than it is tall.
     """
-    from PIL import Image
     with Image.open(path) as im:
         px_w, px_h = im.size
     logical_w = px_w / 2                       # exported at 2x
     aspect = px_w / px_h
 
     width = min(PORTRAIT_MAX_W, PORTRAIT_MAX_H * aspect)
-    landscape = False
+    drawn = path
 
     if label_points(logical_w, width) < MIN_LABEL_PT:
-        if aspect > 1.25:                      # wide: turn the page sideways
-            landscape = True
-            width = min(LANDSCAPE_MAX_W, LANDSCAPE_MAX_H * aspect)
-        else:                                  # tall: give it a full page
+        if aspect > 1.25:
+            # Wide diagram. Turning the page sideways needs a section break on
+            # either side, and Word starts a fresh page at every break, so four
+            # such diagrams cost eight page starts and leave their headings
+            # stranded. Rotating the picture instead gives it the full height
+            # of an ordinary page with no break at all.
+            drawn = rotated(path)
+            with Image.open(drawn) as rot:
+                r_aspect = rot.width / rot.height
+            width = min(PORTRAIT_MAX_W, ROTATED_MAX_H * r_aspect)
+        else:
             width = min(PORTRAIT_MAX_W, FULL_PAGE_H * aspect)
-
-    if landscape:
-        set_orientation(doc.add_section(WD_SECTION.NEW_PAGE), True)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(4)
-    p.add_run().add_picture(str(path), width=Inches(width))
+    p.add_run().add_picture(str(drawn), width=Inches(width))
     if caption:
         body(doc, caption, size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER,
              space_after=12, italic_all=True)
 
-    if landscape:
-        set_orientation(doc.add_section(WD_SECTION.NEW_PAGE), False)
+
+def rotated(path: Path) -> Path:
+    """A quarter-turn copy, so a wide figure can use the page's height.
+
+    Anticlockwise, which is the usual way round for a turned figure: the reader
+    rotates the bound page clockwise to read it.
+    """
+    target = path.with_name(path.stem + "-turned.png")
+    with Image.open(path) as im:
+        im.rotate(90, expand=True).save(target)
+    return target
 
 
 def split_row(line):

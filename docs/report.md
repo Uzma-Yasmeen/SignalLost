@@ -546,28 +546,36 @@ The images below are renders of the running game, produced by a tool that drives
 the real game with A* rather than scripted keystrokes, so they cannot fall out
 of step with the build.
 
+![Title screen](screens/13-title.png)
+**Figure 7.1 — Title screen.** The game opens here, and greets a returning
+player by name with the stars they have collected so far.
+
+![Entering a name](screens/08-name.png)
+**Figure 7.2 — Entering a name.** Progress is stored against the name given
+here, so several people can play on one machine without overwriting each other.
+
 ![Level selection](screens/09-level-select.png)
-**Figure 7.1 — Level selection.** Levels unlock against accumulated stars, and
+**Figure 7.3 — Level selection.** Levels unlock against accumulated stars, and
 each box shows the best rating achieved on it.
 
 ![Part way through](screens/02-explored.png)
-**Figure 7.2 — Fog of war.** Bright tiles are currently visible, dim tiles are
+**Figure 7.4 — Fog of war.** Bright tiles are currently visible, dim tiles are
 remembered terrain, and black is unexplored.
 
 ![Spotted](screens/03-spotted.png)
-**Figure 7.3 — Spotted.** The guard's line of sight is drawn in red, the alarm
+**Figure 7.5 — Spotted.** The guard's line of sight is drawn in red, the alarm
 is raised, and a hunter begins moving towards the sighting.
 
 ![A hint](screens/04-hint.png)
-**Figure 7.4 — A hint.** One suggested move, shown for a single turn, routed to
+**Figure 7.6 — A hint.** One suggested move, shown for a single turn, routed to
 avoid being seen rather than to be shortest.
 
 ![Escaped](screens/07-escaped.png)
-**Figure 7.5 — Escaped.** The rating screen, showing turns taken against par and
+**Figure 7.7 — Escaped.** The rating screen, showing turns taken against par and
 the stars awarded.
 
 ![Developer reveal](screens/05-dev-reveal.png)
-**Figure 7.6 — Developer reveal.** The whole map with every guard shown, used to
+**Figure 7.8 — Developer reveal.** The whole map with every guard shown, used to
 check guard behaviour against expectation.
 
 ---
