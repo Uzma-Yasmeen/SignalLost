@@ -4,3 +4,6 @@ target/
 *.iml
 .vscode/
 .DS_Store
+
+# Generated diagram renders
+docs/diagrams/
