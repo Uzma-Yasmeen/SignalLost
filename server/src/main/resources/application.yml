@@ -1,0 +1,44 @@
+# Default profile: an in-memory database, so the service starts with no setup
+# at all. That matters more than it sounds — a backend you cannot run without
+# first installing a database is a backend nobody checks out and tries.
+spring:
+  application:
+    name: signal-lost-leaderboard
+
+  datasource:
+    url: jdbc:h2:mem:signallost;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    # Flyway owns the schema. Hibernate is told to leave it alone, so the
+    # tables the tests run against are the tables production gets.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+---
+# The profile a deployment would use. Credentials come from the environment,
+# never from this file.
+spring:
+  config:
+    activate:
+      on-profile: postgres
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/signallost}
+    driver-class-name: org.postgresql.Driver
+    username: ${DATABASE_USER:signallost}
+    password: ${DATABASE_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
