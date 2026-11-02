@@ -282,10 +282,18 @@ Progress is a Java properties file. Both formats are specified in
 | FR-9.3 | Escaping within par shall score a second | `ScoreTest` |
 | FR-9.4 | Escaping without being seen shall score a third | `ScoreTest` |
 | FR-9.5 | Par shall be derived from the level's own geometry, not written into the level file | `ScoreTest` |
-| FR-9.6 | Three stars shall be achievable on every level **(derived)** | `StarRatingAchievableTest` |
+| FR-9.6 | Every level shall allow a first turn that ends unseen, so the stealth star is not lost before the player has made a decision **(derived)** | `StarRatingAchievableTest` |
+| FR-9.7 | On level 1, exhaustive search shall confirm that the fastest unseen escape fits within par, so all three stars are reachable together **(derived)** | `StarRatingAchievableTest` |
 
-> **FR-9.6 rationale.** This is the most important requirement in the document
-> and the easiest to violate by accident. With par set at 1.4× the clear route,
+> **FR-9.6 and FR-9.7 rationale.** These are the most important requirements in
+> the document and the easiest to violate by accident. They were a single
+> requirement claiming three stars were achievable on *every* level, with this
+> test named as the proof. The test only ever examined level 1. Four levels —
+> 5, 6, 7 and 8 — began with the player inside a patroller's sight on turn one,
+> so the stealth star was unobtainable and three stars impossible, and the
+> requirement said otherwise for as long as it existed. The requirement is now
+> split into the part that is checked everywhere and the part that is checked
+> on one level, because a requirement is only worth what verifies it. With par set at 1.4× the clear route,
 > level 1 had a fastest escape of 38 turns, a fastest *unseen* escape of 56, and
 > a par of 51 — so the two bonus stars excluded each other and three stars was
 > unreachable however well anyone played. That is not difficulty, it is a broken
@@ -366,7 +374,7 @@ exactly that, which is why they carry no drawing logic.
 | Screen flow | UI-1, UI-2 | `KeyBindingTest` |
 | Artwork | — | `CritterArtTest` |
 
-**26 test classes, 219 tests, all passing.**
+**26 test classes, 230 tests, all passing.**
 
 ---
 
@@ -400,6 +408,10 @@ rather than captured by hand, so they cannot drift from the build.
 ### 5.4 Known limits of the verification
 
 - **Nothing measures NFR-1.** It is asserted, not tested.
+- **Three stars is proved reachable on level 1 only.** The exhaustive search is
+  affordable on the smallest level and nowhere else. The other nine are covered
+  by the cheaper necessary condition in FR-9.6. A level could satisfy that and
+  still have no unseen escape later on, and nothing would catch it.
 - **The UI is thinly tested.** `KeyBindingTest` covers navigation and
   bindings by resolving real keystrokes; nothing covers what is drawn.
 - **Two tests were once fake.** Two hint tests were wrapped in a condition that

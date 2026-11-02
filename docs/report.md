@@ -36,7 +36,7 @@ guards and levels.
 
 The completed system has ten levels, six playable characters, three lives per
 run, a limited hint system, a star rating based on turns taken and times seen,
-and saved progress for each player. It is verified by 219 automated tests in 26
+and saved progress for each player. It is verified by 230 automated tests in 26
 test classes. These include an architectural test that fails the build if the
 game rules ever refer to the user interface, and a fairness test that checks
 every level can be completed. Level difficulty was calibrated using an
@@ -183,7 +183,8 @@ testing or play revealed a fault.
 | --- | --- | --- |
 | FR-9.1 | Escaping scores one star, escaping within par a second, escaping unseen a third | `ScoreTest` |
 | FR-9.2 | Par is calculated from the level's own geometry, not written into the level file | `ScoreTest` |
-| FR-9.3 | **(D)** Three stars can be achieved on every level | `StarRatingAchievableTest` |
+| FR-9.3 | **(D)** Every level allows a first turn that ends unseen, so the stealth star survives the opening | `StarRatingAchievableTest` |
+| FR-9.4 | **(D)** On level 1, exhaustive search confirms the fastest unseen escape fits within par, so all three stars are reachable together | `StarRatingAchievableTest` |
 | FR-10.1 | Ten levels are provided, and every key and the exit are reachable in each | `LevelIntegrityTest` |
 | FR-10.2 | **(D)** Every watched tile has cover within reach, so being seen can always be survived | `LevelFairnessTest` |
 | FR-10.3 | Levels unlock at 0, 1, 3, 5, 8, 11, 14, 17, 20 and 23 stars | `LevelIntegrityTest` |
@@ -606,7 +607,7 @@ check guard behaviour against expectation.
 Signal Lost was delivered as a complete, playable turn-based stealth game in
 Java, with ten levels, six characters, three guard types, exact undo, a limited
 hint system, star-based scoring and saved progress. The rules are 2,940 lines
-across six packages and are verified by 219 automated tests in 26 test classes.
+across six packages and are verified by 230 automated tests in 26 test classes.
 
 All seven objectives in Section 2.2 were met. Fog of war is a bounded
 breadth-first flood fill, pursuit uses A* with a Manhattan heuristic and a

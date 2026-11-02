@@ -25,39 +25,27 @@ public final class Sentinel extends Guard {
     /** Sentinels see further than a patroller, because they only see one way. */
     public static final int DEFAULT_SIGHT = 6;
 
-    /** Turns a sentinel stares at a sighting before resuming its sweep. */
-    public static final int STARE_TURNS = 3;
-
     public Sentinel(String name, Position post, Direction initialFacing) {
         super(name, DEFAULT_SIGHT, post, List.of(post));
         applyState(state().turnedTo(initialFacing));
     }
 
-    @Override
-    public GuardState decideTurn(GameMap map, Position player) {
-        GuardState current = state();
-
-        // Staring at a sighting: hold still, burning one turn of patience.
-        if (current.mode() == GuardMode.ALERT && current.hasSomewhereToSearch()) {
-            GuardState waited = current.oneTurnLessPatient();
-            return waited.hasSomewhereToSearch() ? waited : waited.withMode(GuardMode.PATROL);
-        }
-
-        return SentinelBehaviour.INSTANCE.takeTurn(this, current, map, player);
-    }
-
     /**
-     * Turns to face where the player was seen and holds there.
+     * Sweeps, and keeps sweeping, whatever else is happening.
      *
-     * <p>A sentinel cannot answer an alarm by chasing, but it can stop sweeping
-     * and watch the place the player was last seen, which is the most useful
-     * thing a fixed camera can do.
+     * <p>It used to break off and stare at wherever the player had been seen,
+     * which read well and played terribly. The alarm is raised again on every
+     * turn the player is still in somebody's sight, and each one restarted the
+     * stare, so a sentinel that caught sight of you once stopped turning for
+     * good and became a spotlight bolted to your back.
+     *
+     * <p>The fix is not a longer fuse but no fuse. A camera whose sweep never
+     * varies can be watched for four turns and then timed, which is the only
+     * thing that makes it a puzzle rather than one more thing chasing you.
      */
     @Override
-    public GuardState onAlarmRaised(GuardState current, Position sighting) {
-        return current
-                .searching(sighting, STARE_TURNS)
-                .turnedTo(SentinelBehaviour.towards(current.position(), sighting));
+    public GuardState decideTurn(GameMap map, Position player) {
+        return SentinelBehaviour.INSTANCE.takeTurn(this, state(), map, player);
     }
 
     /**

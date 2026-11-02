@@ -51,7 +51,6 @@ import java.util.function.Predicate;
  */
 public final class ScreenshotTool {
 
-    private static final int SIGHT_RADIUS = 5;
     private static final int SCALE = 2;
 
     private ScreenshotTool() {
@@ -116,7 +115,7 @@ public final class ScreenshotTool {
      */
     private static void captureEscape(Path target, Critter critter) throws IOException {
         Level level = LevelLoader.loadFromResource("level1");
-        GameState state = new GameState(level.map(), List.of(), SIGHT_RADIUS, level.turnLimit());
+        GameState state = new GameState(level.map(), List.of(), GameState.DEFAULT_SIGHT_RADIUS, level.turnLimit());
 
         // Follow the game's own suggested route, which knows there is more
         // than one key to collect before the exit will open.
@@ -140,7 +139,7 @@ public final class ScreenshotTool {
             throws IOException {
         Level level = LevelLoader.loadFromResource(levelName);
         GameState state = new GameState(
-                level.map(), level.guards(), SIGHT_RADIUS, level.turnLimit());
+                level.map(), level.guards(), GameState.DEFAULT_SIGHT_RADIUS, level.turnLimit());
         state.fog().setRevealAll(true);
 
         JPanel root = new JPanel(new BorderLayout());
@@ -206,7 +205,7 @@ public final class ScreenshotTool {
         List<Direction> route = plannedRoute(level.map());
 
         GameState state = new GameState(
-                level.map(), level.guards(), SIGHT_RADIUS, level.turnLimit());
+                level.map(), level.guards(), GameState.DEFAULT_SIGHT_RADIUS, level.turnLimit());
         for (Direction move : route) {
             if (stopWhen.test(state)) {
                 break;

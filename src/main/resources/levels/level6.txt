@@ -13,6 +13,6 @@
 #####################
 ---
 turns 240
-patroller 3,1 3,19
+patroller 3,19 3,1
 patroller 10,19 10,1
 hunter 6,19 6,1

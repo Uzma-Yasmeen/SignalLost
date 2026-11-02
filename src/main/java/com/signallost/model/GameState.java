@@ -50,6 +50,17 @@ public final class GameState {
     /** A turn limit of this value means the level is untimed. */
     public static final int NO_TURN_LIMIT = 0;
 
+    /**
+     * How far the player can see.
+     *
+     * <p>It lived in the window until a second program needed it. A server that
+     * verifies a submitted run has to replay that run with exactly the settings
+     * the player had, and a sight radius defined in the user interface is a
+     * number the server can only copy and then silently disagree about. How far
+     * you can see is a rule, so it belongs with the rules.
+     */
+    public static final int DEFAULT_SIGHT_RADIUS = 5;
+
     /** Attempts at a level before the run is over. */
     public static final int STARTING_LIVES = 3;
 

@@ -4,7 +4,7 @@
 
 ![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
 ![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-219%20passing-success)
+![Tests](https://img.shields.io/badge/tests-230%20passing-success)
 ![No dependencies](https://img.shields.io/badge/runtime%20dependencies-none-blue)
 ![Licence](https://img.shields.io/badge/licence-MIT-green)
 

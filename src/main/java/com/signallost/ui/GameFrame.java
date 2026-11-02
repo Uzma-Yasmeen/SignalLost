@@ -39,7 +39,6 @@ import java.util.Set;
  */
 public final class GameFrame extends JFrame {
 
-    private static final int SIGHT_RADIUS = 5;
 
     private static final String HOME_CARD = "home";
     private static final String NAME_CARD = "name";
@@ -160,7 +159,7 @@ public final class GameFrame extends JFrame {
 
     private void loadLevel() {
         Level level = LevelLoader.loadFromResource(currentLevel.name());
-        state = new GameState(level.map(), level.guards(), SIGHT_RADIUS, level.turnLimit());
+        state = new GameState(level.map(), level.guards(), GameState.DEFAULT_SIGHT_RADIUS, level.turnLimit());
         gamePanel = new GamePanel(state, critter);
         hud = new HudBar(state, critter, currentLevel.name());
 

@@ -6,7 +6,6 @@ import com.signallost.level.LevelLoader;
 import com.signallost.model.Direction;
 import com.signallost.model.GameState;
 import com.signallost.model.TileType;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -30,6 +29,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * amount of skill could ever produce three stars, and the only way to find out
  * was to keep failing at it. This test searches for the shortest unseen escape
  * and insists par leaves room for it.
+ *
+ * <p><strong>What this file does and does not prove.</strong> The exhaustive
+ * search is affordable on the smallest level and nowhere else, so it runs on
+ * level 1 alone. For a long time the requirement said three stars were
+ * achievable on <em>every</em> level and pointed here as the proof, which was
+ * an overclaim: four levels began with the player inside a patroller's sight on
+ * turn one, making the stealth star impossible, and nothing noticed. The cheap
+ * check below now covers all ten. It is a necessary condition rather than a
+ * sufficient one — an unseen opening does not guarantee an unseen escape — but
+ * it is the condition those four failed.
  */
 class StarRatingAchievableTest {
 
@@ -46,8 +55,10 @@ class StarRatingAchievableTest {
         int par = new GameState(level.map(), List.of(), 5, level.turnLimit()).parTurns();
 
         int unseenBest = shortestUnseenEscape(name, level.turnLimit());
-        Assumptions.assumeTrue(unseenBest != Integer.MIN_VALUE,
-                "the search outgrew its budget on " + name);
+        assertTrue(unseenBest != Integer.MIN_VALUE,
+                name + ": the search outgrew its " + STATE_BUDGET + " state budget, so three"
+                        + " stars can no longer be verified here. Raise the budget or simplify"
+                        + " the level, but do not leave the claim unchecked.");
 
         assertTrue(unseenBest > 0,
                 name + ": there is no unseen escape at all, so the stealth star is unearnable");
@@ -66,6 +77,40 @@ class StarRatingAchievableTest {
      * @return the turn count, 0 when no unseen escape exists, or
      *         {@link Integer#MIN_VALUE} when the search ran out of budget
      */
+    /**
+     * Every level must allow a first turn that ends unseen.
+     *
+     * <p>This is the cheap half of the claim and it runs on all ten levels in
+     * milliseconds. If a guard begins within sight of the player's own starting
+     * tile, the player is seen on turn one whatever they do, the stealth star
+     * is gone before they have made a decision, and three stars is arithmetic
+     * rather than difficulty.
+     */
+    @ParameterizedTest(name = "{0}: the player can survive turn one unseen")
+    @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5",
+                            "level6", "level7", "level8", "level9", "level10"})
+    void anUnseenOpeningExists(String name) {
+        List<Direction> safeOpenings = new ArrayList<>();
+        int legalOpenings = 0;
+
+        for (Direction move : MOVES) {
+            GameState state = build(name);
+            if (!state.movePlayer(move)) {
+                continue;
+            }
+            legalOpenings++;
+            if (state.sightings() == 0) {
+                safeOpenings.add(move);
+            }
+        }
+
+        assertTrue(legalOpenings > 0, name + ": the player cannot move at all on turn one");
+        assertTrue(!safeOpenings.isEmpty(),
+                name + ": every one of the " + legalOpenings + " legal opening moves ends inside"
+                        + " a guard's sight, so the stealth star cannot be earned. Start the"
+                        + " nearest guard further from the player's own starting tile.");
+    }
+
     private static int shortestUnseenEscape(String levelName, int turnLimit) {
         List<List<Direction>> frontier = new ArrayList<>();
         frontier.add(new ArrayList<>());

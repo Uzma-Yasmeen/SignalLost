@@ -183,25 +183,41 @@ class SentinelTest {
     // -------------------------------------------------------------- the alarm
 
     @Test
-    @DisplayName("An alarm makes it stare at the sighting, then resume sweeping")
-    void staresAtTheAlarmThenGivesUp() {
+    @DisplayName("An alarm does not interrupt the sweep")
+    void keepsSweepingThroughAnAlarm() {
         GameMap map = room();
         Sentinel guard = new Sentinel("S", new Position(3, 4), Direction.UP);
 
-        guard.applyState(guard.onAlarmRaised(guard.state(), new Position(5, 4)));
-        assertEquals(Direction.DOWN, guard.state().facing(), "turned towards the sighting");
-        assertEquals(GuardMode.ALERT, guard.mode());
-
-        Direction held = guard.state().facing();
-        for (int turn = 0; turn < Sentinel.STARE_TURNS - 1; turn++) {
+        // The alarm is raised again on every turn the player stays in sight, so
+        // this is the realistic case, not an unusual one. A sentinel that broke
+        // off to stare would never turn again.
+        for (int turn = 0; turn < 8; turn++) {
+            guard.applyState(guard.onAlarmRaised(guard.state(), new Position(5, 4)));
             step(guard, map);
-            assertEquals(held, guard.state().facing(), "holds still while staring");
         }
 
-        step(guard, map);
-        assertEquals(GuardMode.PATROL, guard.mode(), "patience runs out");
-        step(guard, map);
-        assertFalse(guard.state().facing() == held, "and the sweep starts again");
+        assertEquals(GuardMode.PATROL, guard.mode(), "an alarm must not change its mode");
+        assertEquals(Direction.UP, guard.state().facing(),
+                "eight quarter-turns is two full sweeps, back to the start");
+    }
+
+    @Test
+    @DisplayName("A sentinel under constant alarm still looks away three turns in four")
+    void sweepKeepsLettingThePlayerPast() {
+        GameMap map = room();
+        Position hidingPlace = new Position(1, 4);          // only in the UP cone
+        Sentinel guard = new Sentinel("S", new Position(3, 4), Direction.UP);
+
+        int seen = 0;
+        for (int turn = 0; turn < 8; turn++) {
+            guard.applyState(guard.onAlarmRaised(guard.state(), hidingPlace));
+            if (guard.watchedTiles(map).contains(hidingPlace)) {
+                seen++;
+            }
+            step(guard, map);
+        }
+
+        assertEquals(2, seen, "over two full sweeps a given tile is watched twice, not eight times");
     }
 
     // ------------------------------------------------------------------ undo

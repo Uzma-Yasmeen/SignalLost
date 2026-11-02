@@ -15,7 +15,7 @@
 #################
 ---
 turns 240
-patroller 2,1 2,15
+patroller 2,15 2,1
 patroller 10,15 10,1
 hunter 7,1 7,15
 sentinel 3,2 down
