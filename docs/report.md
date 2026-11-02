@@ -106,7 +106,10 @@ is planned as a second phase and is not implemented.
 
 All three guard types described in the original proposal are implemented: a
 patroller that walks a route, a hunter that pursues with A*, and a stationary
-sentinel whose vision cone sweeps a quarter-turn each turn. Remaining gaps are
+sentinel whose vision cone sweeps a quarter-turn each turn. The sentinel is
+tested and can be placed from a level file, but no shipped level uses one: none
+of the ten has geometry in which a rotating cone leaves anywhere safe to wait,
+which is discussed in Section 8.3. Remaining gaps are
 recorded in Section 8.3 and in the accompanying Software Requirements
 Specification.
 
@@ -155,7 +158,7 @@ testing or play revealed a fault.
 | FR-3.5 | A sentinel never leaves its post and never hunts, so it cannot capture anybody | `SentinelTest` |
 | FR-3.6 | A sentinel sees only a ninety-degree cone in the direction it faces | `SentinelTest` |
 | FR-3.7 | A sentinel turns one quarter clockwise each turn, repeating every four turns | `SentinelTest` |
-| FR-3.8 | On an alarm a sentinel faces the sighting and holds for three turns | `SentinelTest` |
+| FR-3.8 | A sentinel keeps sweeping through an alarm, so its rotation can always be timed | `SentinelTest` |
 | FR-4.1 | A turn ending inside a guard's line of sight counts as a sighting | `SpottingTest` |
 | FR-4.2 | A sighting raises an alarm, which puts every hunter into HUNT mode | `AlarmTest` |
 | FR-4.3 | Sightings are counted for the whole run, not per attempt | `ScoreTest` |
@@ -637,6 +640,10 @@ wrong twice, each time reporting winnable levels as unwinnable.
 
 ### 8.3 Limitations
 
+- The sentinel guard is implemented and tested but appears in no level. Placed
+  in level 5, its six-tile cone covered fifteen of the sixteen walkable tiles in
+  that room across one sweep, leaving nowhere to wait while it turned. The guard
+  type is sound; the levels were not built for it.
 - No performance budget is measured; NFR-1 is claimed rather than verified.
 - Nothing in the game teaches its rules. A new player learns that red tiles are
   watched, and that only hunters capture, by being caught.

@@ -199,7 +199,7 @@ Progress is a Java properties file. Both formats are specified in
 | FR-3.6 | A sentinel shall never leave its post | `SentinelTest` |
 | FR-3.7 | A sentinel shall see only a ninety-degree cone in the direction it faces, widening by one tile per tile of distance | `SentinelTest` |
 | FR-3.8 | A sentinel shall turn one quarter clockwise each turn, repeating its sweep every four turns | `SentinelTest` |
-| FR-3.9 | On an alarm a sentinel shall face the sighting and hold for three turns, then resume sweeping | `SentinelTest` |
+| FR-3.9 | A sentinel shall keep sweeping through an alarm, neither changing mode nor interrupting its rotation | `SentinelTest` |
 | FR-3.10 | A sentinel shall never enter HUNT mode, and therefore shall never capture the player | `SentinelTest` |
 
 > **FR-3.4 rationale.** A hunter moving at exactly the player's speed never
@@ -207,6 +207,15 @@ Progress is a Java properties file. Both formats are specified in
 > hunter appeared to escort the player. Moving at a net half tile per turn means
 > running in a straight line loses and breaking line of sight wins, which is the
 > behaviour the game is about.
+
+> **FR-3.9 rationale.** This requirement said the opposite until playtesting.
+> A sentinel used to break off and watch wherever the player had last been
+> seen, for three turns. The alarm is raised again on every turn the player
+> stays in sight, and each one restarted the count, so a sentinel that caught
+> sight of the player once never turned again — a spotlight fixed on them
+> rather than a camera. The behaviour was removed rather than given a longer
+> fuse, because a sweep that never varies is the only thing that makes a
+> sentinel a timing problem instead of one more pursuer.
 
 > **FR-3.7 note.** The cone narrows what the guard can see; it does not widen
 > it. A sentinel's watched tiles are the ordinary flood fill intersected with
@@ -433,7 +442,15 @@ An SRS that lists only what was achieved is a sales document.
 | **Spring Boot and PostgreSQL leaderboard** | Phase 2, not started. Deliberately deferred. |
 
 The sentinel guard, listed here as missing in version 1.0, was built afterwards
-and is specified as FR-3.6 to FR-3.9.
+and is specified as FR-3.6 to FR-3.10.
+
+It is implemented, tested and loadable from a level file, but **no shipped level
+places one.** It was tried in level 5, where a six-tile cone in a three-wide
+room left no tile safe at any point in the sweep — facing one way it watched the
+whole top of the room including the player's start, facing the other the whole
+bottom including the single-tile corridor that is the only way out. None of the
+ten levels has geometry that suits a rotating cone, so rather than force one in,
+the guard type exists and waits for a level built around it.
 
 ### 6.2 Partially met
 
