@@ -72,11 +72,17 @@
       <scope>runtime</scope>
     </dependency>
 
-    <!-- Tests run against an in-memory database, so no server is needed. -->
+    <!--
+      H2 is at runtime scope rather than test scope on purpose. The default
+      profile uses an in-memory database so the service starts with no setup at
+      all, which makes it something a reviewer can actually run; that is only
+      true if the driver is on the runtime classpath. A deployment uses the
+      postgres profile, where this one is simply never loaded.
+    -->
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
-      <scope>test</scope>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
