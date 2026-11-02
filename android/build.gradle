@@ -1,0 +1,9 @@
+// Phase 3: the phone build.
+//
+// Nothing of the game is copied here. The app module compiles the same source
+// files the desktop build does, minus the Swing package, which is possible only
+// because the rules never refer to it — a property the desktop build enforces
+// with a test rather than a convention.
+plugins {
+    id 'com.android.application' version '8.2.1' apply false
+}

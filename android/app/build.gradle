@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.signallost.android'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.signallost"
+        // java.nio.file, which the save file uses, arrived in API 26.
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "0.1.0"
+    }
+
+    compileOptions {
+        // The rules use records and switch expressions. D8 rewrites both for
+        // older devices, so this is a build concern rather than a runtime one.
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            java {
+                srcDirs = [
+                        'src/main/java',          // the Android front end
+                        '../../src/main/java'     // the game's own rules
+                ]
+                // The desktop front end stays behind. It is the only part of
+                // the project that mentions Swing, and the reason this module
+                // can reuse everything else without a line of change.
+                exclude 'com/signallost/ui/**'
+                exclude 'com/signallost/Main.java'
+            }
+            // Levels are read with getResourceAsStream, which works unchanged
+            // once they are packaged as the APK's java resources.
+            resources.srcDirs = ['../../src/main/resources']
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+
+dependencies {
+    // Deliberately none. The rules need nothing beyond the standard library,
+    // and the interface is drawn straight onto a Canvas, so there is no
+    // AndroidX, no game engine and no third party anything in this APK.
+}

@@ -7,3 +7,8 @@ target/
 
 # Generated diagram renders
 docs/diagrams/
+
+# Android build output
+android/.gradle/
+android/app/build/
+android/local.properties
