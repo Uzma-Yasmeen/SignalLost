@@ -514,7 +514,10 @@ public final class GamePanel extends JPanel {
             g.drawRect(i, i, getWidth() - 1 - i * 2, getHeight() - 1 - i * 2);
         }
 
-        String message = "SPOTTED  ·  the alarm is up  ·  press U to take it back";
+        // Undo rewinds the board but keeps the sighting on the record, so this
+        // no longer offers to take it back. Telling the player the move can be
+        // undone while quietly keeping the cost would be the interface lying.
+        String message = "SPOTTED  ·  the alarm is up  ·  U rewinds the move, not the sighting";
         g.setFont(Fonts.bodyBold(13f));
         FontMetrics metrics = g.getFontMetrics();
         int width = metrics.stringWidth(message) + 28;

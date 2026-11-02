@@ -171,7 +171,8 @@ testing or play revealed a fault.
 | FR-6.1 | A level may hold several keys, and all are required | `MultipleKeysTest` |
 | FR-6.2 | The exit stays closed until every key is held | `MultipleKeysTest` |
 | FR-7.1 | Every turn is recorded as a command object on a stack | `UndoTest` |
-| FR-7.2 | Undo restores player, guards, alarm, sighting count, keys and clock | `UndoTest` |
+| FR-7.2 | Undo restores player, guards, alarm, keys and clock | `UndoTest` |
+| FR-7.6 | **(D)** Undo does not restore the sighting count; being seen is permanent for the run | `SpottingTest`, `AlarmTest` |
 | FR-7.3 | Undo repeats back to the start of the attempt, and is refused once it has ended | `UndoTest` |
 | FR-8.1 | A hint shows one move, never a route, and expires when the player moves | `HintTest`, `HintLifetimeTest` |
 | FR-8.2 | When the player is in a guard's sight, the hint points towards cover | `HintCoverTest` |
@@ -392,8 +393,11 @@ Undo pops the turn and reverses its parts in the opposite order: the alarm
 first, then each guard, then the player. Nothing is recalculated; everything is
 restored from values captured at the time.
 
-One omission is deliberate. The hint budget is not restored, because if it were,
-three hints would be unlimited: a player could ask, undo, and repeat.
+Two omissions are deliberate. The hint budget is not restored, because if it
+were, three hints would be unlimited: a player could ask, undo, and repeat. Nor
+is the sighting count, for the same reason — refunding it made the stealth star
+free to anyone willing to walk into a guard's sight and press U until a safe
+route turned up.
 
 ### 5.5 Activity Diagram
 
@@ -541,7 +545,7 @@ the state it replaced. Guards keep an immutable `GuardState` record holding
 position, mode, route index, last known player position, remaining alert turns
 and surge status.
 
-Undo therefore restores the guards, the alarm, the sighting count, the keys and
+Undo therefore restores the guards, the alarm, the keys and
 the clock, not only the player's position. What makes this exact is that guards
 are never changed field by field, only replaced whole.
 

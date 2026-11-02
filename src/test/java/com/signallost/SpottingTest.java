@@ -105,7 +105,7 @@ class SpottingTest {
 
     @Test
     @DisplayName("Undo takes back the sighting as well as the move")
-    void undoTakesBackASighting() {
+    void undoTakesBackTheTurnButNotTheSighting() {
         GameState state = withSentryAt(new Position(1, 5));
 
         state.movePlayer(Direction.RIGHT);
@@ -113,8 +113,14 @@ class SpottingTest {
 
         state.undoLastMove();
 
+        // The board rewinds, so the warning clears and the player is back.
         assertFalse(state.wasSpotted());
-        assertEquals(0, state.sightings());
+
+        // The record does not. Refunding it made the stealth star free: walk
+        // into a guard's sight, press U, try the next corridor, and a third of
+        // the rating cost nothing but patience.
+        assertEquals(1, state.sightings(),
+                "being seen is the one thing undo does not take back");
     }
 
     @Test

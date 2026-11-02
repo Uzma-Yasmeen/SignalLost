@@ -34,7 +34,7 @@ line is arithmetic you lose. Breaking its line of sight is the only thing that
 works, which turns every chase into a question about corners rather than speed.
 
 **Undo rewinds the guards too.** `U` does not just step you backwards; it
-restores the patrol positions, the alarm, the sighting count and the clock,
+restores the patrol positions, the alarm and the clock,
 because every turn is a command object holding immutable snapshots of all of it.
 You can genuinely take a move back and try the other door.
 
@@ -72,7 +72,7 @@ java -cp target/classes com.signallost.Main
 | --- | --- |
 | arrow keys, or W A S D | move one tile, which costs one turn |
 | space, or `.` | wait one turn, or claim your next life after a capture |
-| `U` | undo the last turn: guards, sightings and the clock included |
+| `U` | undo the last turn — guards and clock included, but not the sighting |
 | `H` | show one suggested move — three a level |
 | `R` | restart the level |
 | `C` | back to the character select |

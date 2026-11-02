@@ -125,10 +125,16 @@ class StarRatingAchievableTest {
                     state.movePlayer(move);
                 }
                 for (Direction move : MOVES) {
+                    // Undo deliberately no longer refunds a sighting, so the
+                    // count does not return to where it was when this search
+                    // steps back. Asking whether *this* move added one is still
+                    // exact, and is all the search needs, because a prefix only
+                    // ever grows by moves that added none.
+                    int sightingsBefore = state.sightings();
                     if (!state.movePlayer(move)) {
                         continue;
                     }
-                    boolean spotted = state.sightings() > 0;
+                    boolean spotted = state.sightings() > sightingsBefore;
                     if (state.hasEscaped() && !spotted) {
                         return turn;
                     }

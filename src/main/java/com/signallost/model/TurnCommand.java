@@ -106,7 +106,19 @@ final class TurnCommand implements Command {
         }
         playerAction.undo();
 
-        state.sightings = previousSightings;
+        // The board goes back. The fact that you were seen does not.
+        //
+        // Undo used to refund the sighting too, which sounded fair and emptied
+        // the game of its subject. Being seen was the one thing the player was
+        // supposed to avoid, and it cost nothing: walk into a guard's sight,
+        // press U, try the next corridor. A third of the rating was available
+        // to anybody patient enough to brute-force it, so the only star with
+        // any difficulty left in it was the one for speed.
+        //
+        // Undo exists because the map is hidden and walking into an unseen room
+        // is how you learn it — not so that being caught looking can be taken
+        // back. The guards, the alarm, the keys and the clock all rewind. The
+        // sighting count is the one thing that remembers.
         state.spotted = previousSpotted;
         state.failed = previousFailed;
         state.caught = previousCaught;

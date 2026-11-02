@@ -129,7 +129,11 @@ class AlarmTest {
 
         assertEquals(hunterStart, hunter.position());
         assertEquals(GuardMode.PATROL, hunter.mode());
-        assertEquals(0, state.sightings());
+
+        // Guards, modes and the alarm all rewind exactly. The count of how many
+        // turns ended in somebody's sight is deliberately kept.
+        assertEquals(2, state.sightings(),
+                "the guards go back to their posts, but the sightings stand");
     }
 
     @Test

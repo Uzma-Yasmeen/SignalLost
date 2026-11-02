@@ -253,7 +253,8 @@ Progress is a Java properties file. Both formats are specified in
 | ID | Requirement | Verified by |
 | --- | --- | --- |
 | FR-7.1 | Every turn shall be recorded as a command on a stack | `UndoTest` |
-| FR-7.2 | Undo shall restore the player, the guards, the alarm state, the sighting count, the keys and the clock | `UndoTest` |
+| FR-7.2 | Undo shall restore the player, the guards, the alarm state, the keys and the clock | `UndoTest` |
+| FR-7.6 | Undo shall **not** restore the sighting count; a turn that ended in a guard's sight stays on the record for the whole run **(derived)** | `SpottingTest`, `AlarmTest` |
 | FR-7.3 | Undo shall be repeatable back to the start of the attempt | `UndoTest` |
 | FR-7.4 | Undo shall be refused once the attempt has ended | `UndoTest` |
 | FR-7.5 | The query "can I undo?" shall agree with what undo actually does **(derived)** | `UndoTest` |
