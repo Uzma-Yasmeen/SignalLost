@@ -61,6 +61,7 @@ public final class HuntBehaviour implements GuardBehaviour {
 
         // The player's tile is recorded every turn, so the moment sight breaks
         // the guard already knows the freshest place to start searching.
-        return new GuardState(at, GuardMode.HUNT, current.routeIndex(), player, 0, surging);
+        return new GuardState(at, GuardMode.HUNT, current.routeIndex(), player, 0, surging,
+                current.facing());
     }
 }

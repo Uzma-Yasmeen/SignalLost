@@ -43,6 +43,6 @@ public final class AlertBehaviour implements GuardBehaviour {
         }
 
         return new GuardState(step, GuardMode.ALERT, current.routeIndex(), target,
-                Math.max(0, current.alertTurnsLeft() - 1), false);
+                Math.max(0, current.alertTurnsLeft() - 1), false, current.facing());
     }
 }

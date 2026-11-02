@@ -49,6 +49,7 @@ public final class PatrolBehaviour implements GuardBehaviour {
             step = current.position();
         }
 
-        return new GuardState(step, GuardMode.PATROL, waypoint, current.lastSeenPlayer(), 0, false);
+        return new GuardState(step, GuardMode.PATROL, waypoint, current.lastSeenPlayer(), 0, false,
+                current.facing());
     }
 }

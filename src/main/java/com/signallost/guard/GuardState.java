@@ -1,5 +1,6 @@
 package com.signallost.guard;
 
+import com.signallost.model.Direction;
 import com.signallost.model.Position;
 
 /**
@@ -12,8 +13,9 @@ import com.signallost.model.Position;
  * has to be unwound step by step.
  *
  * <p>Not every field matters to every guard — a patroller never searches, so its
- * {@code lastSeenPlayer} stays null — which is the small price for one shared
- * snapshot type instead of one per guard class.
+ * {@code lastSeenPlayer} stays null, and only a sentinel cares which way it is
+ * facing — which is the small price for one shared snapshot type instead of one
+ * per guard class.
  *
  * @param position        the tile the guard stands on
  * @param mode            what it is currently doing
@@ -22,6 +24,8 @@ import com.signallost.model.Position;
  * @param alertTurnsLeft  how much longer it will keep searching before giving up
  * @param surgedLastTurn  whether a hunting guard sprinted on its last turn, so
  *                        that it walks on this one
+ * @param facing          the way a sentinel is looking; ignored by guards whose
+ *                        sight goes in every direction
  */
 public record GuardState(
         Position position,
@@ -29,27 +33,41 @@ public record GuardState(
         int routeIndex,
         Position lastSeenPlayer,
         int alertTurnsLeft,
-        boolean surgedLastTurn) {
+        boolean surgedLastTurn,
+        Direction facing) {
 
     /** The state a guard starts a level in. */
     public static GuardState startingAt(Position spawn) {
-        return new GuardState(spawn, GuardMode.PATROL, 0, null, 0, false);
+        return new GuardState(spawn, GuardMode.PATROL, 0, null, 0, false, Direction.UP);
     }
 
     public GuardState at(Position newPosition) {
         return new GuardState(newPosition, mode, routeIndex, lastSeenPlayer, alertTurnsLeft,
-                surgedLastTurn);
+                surgedLastTurn, facing);
     }
 
     public GuardState withMode(GuardMode newMode) {
         return new GuardState(position, newMode, routeIndex, lastSeenPlayer, alertTurnsLeft,
-                surgedLastTurn);
+                surgedLastTurn, facing);
+    }
+
+    /** The same guard, looking somewhere else. */
+    public GuardState turnedTo(Direction newFacing) {
+        return new GuardState(position, mode, routeIndex, lastSeenPlayer, alertTurnsLeft,
+                surgedLastTurn, newFacing);
     }
 
     /** Switches to searching for the player, with a fresh patience counter. */
     public GuardState searching(Position target, int patience) {
         // Searching is a walk, so any sprint is over.
-        return new GuardState(position, GuardMode.ALERT, routeIndex, target, patience, false);
+        return new GuardState(position, GuardMode.ALERT, routeIndex, target, patience, false,
+                facing);
+    }
+
+    /** Spends one turn of patience, which is how an alert eventually lapses. */
+    public GuardState oneTurnLessPatient() {
+        return new GuardState(position, mode, routeIndex, lastSeenPlayer,
+                Math.max(0, alertTurnsLeft - 1), surgedLastTurn, facing);
     }
 
     public boolean hasSomewhereToSearch() {
