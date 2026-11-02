@@ -252,11 +252,16 @@ classDiagram
     GameState ..> Direction
 ```
 
-### 5.3.2 Guards — State, Strategy and Observer together
+### 5.3.2 Guards: the three types and their shared state
 
-Three patterns meet in one place. `GuardMode` is the **State**; `GuardBehaviour`
-is the **Strategy** selected by that state; `AlarmListener` is the **Observer**
-by which one guard's sighting reaches every other.
+Every guard is the same thing from the outside — something with a position, a
+mode and a set of tiles it can see. What differs is how it decides a turn, which
+is the next diagram.
+
+`GuardState` is an immutable record holding a guard's whole condition. A guard
+does not change itself; it calculates a new state and has one applied. That is
+what makes undo exact, because `GuardMoveCommand` restores the previous record
+rather than trying to reverse each field.
 
 ```mermaid
 classDiagram
@@ -272,46 +277,29 @@ classDiagram
         -GuardState state
         +decideTurn(GameMap, Position)* GuardState
         +type()* String
+        +watchedTiles(GameMap) Set~Position~
         +canSee(GameMap, Position) boolean
-        +state() GuardState
         +applyState(GuardState) void
         +mode() GuardMode
-        +position() Position
     }
 
     class Patroller {
-        -Position routeStart
-        -Position routeEnd
+        +DEFAULT_SIGHT$ int = 3
         +decideTurn(GameMap, Position) GuardState
-        +type() String
     }
 
     class Hunter {
         -Position post
         +decideTurn(GameMap, Position) GuardState
         +onAlarmRaised(GuardState, Position) GuardState
-        +type() String
     }
 
-    class GuardBehaviour {
-        <<interface>>
-        +takeTurn(Guard, GuardState, GameMap, Position) GuardState
-    }
-
-    class PatrolBehaviour {
-        +INSTANCE$ PatrolBehaviour
-        +takeTurn(...) GuardState
-    }
-
-    class HuntBehaviour {
-        +SURGE_STEPS$ int = 2
-        +INSTANCE$ HuntBehaviour
-        +takeTurn(...) GuardState
-    }
-
-    class AlertBehaviour {
-        +INSTANCE$ AlertBehaviour
-        +takeTurn(...) GuardState
+    class Sentinel {
+        +DEFAULT_SIGHT$ int = 6
+        +STARE_TURNS$ int = 3
+        +decideTurn(GameMap, Position) GuardState
+        +onAlarmRaised(GuardState, Position) GuardState
+        +watchedTiles(GameMap) Set~Position~
     }
 
     class GuardState {
@@ -322,6 +310,7 @@ classDiagram
         +Position lastSeenPlayer
         +int alertTurnsLeft
         +boolean surgedLastTurn
+        +Direction facing
     }
 
     class GuardMode {
@@ -329,38 +318,74 @@ classDiagram
         PATROL
         ALERT
         HUNT
-        +label() String
-    }
-
-    class AStarPathfinder {
-        +findPath(GameMap, Position, Position)$ List~Position~
-        +findPath(GameMap, Position, Position, ToIntFunction)$ List~Position~
-        +nextStepTowards(GameMap, Position, Position)$ Optional~Position~
     }
 
     AlarmListener <|.. Guard
     Guard <|-- Patroller
     Guard <|-- Hunter
+    Guard <|-- Sentinel
+    Guard "1" *-- "1" GuardState
+    GuardState ..> GuardMode
+```
+
+> **Why the sentinel overrides `watchedTiles`.** Sight is one method on
+> `Guard`, so narrowing it to a cone is an override rather than a new concept.
+> Everything that asks what a guard can see — the red overlay, the spotting
+> check, the level fairness test — goes through that one method and needed no
+> change when a third guard type arrived.
+
+### 5.3.2.1 Guards: Strategy and Observer
+
+`GuardMode` is the **State** and decides which behaviour applies.
+`GuardBehaviour` is the **Strategy**, with four stateless implementations.
+`AlarmListener` is the **Observer**, through which one guard's sighting reaches
+every other guard without any of them holding a reference to the others.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class GuardBehaviour {
+        <<interface>>
+        +mode() GuardMode
+        +takeTurn(Guard, GuardState, GameMap, Position) GuardState
+    }
+
+    class PatrolBehaviour {
+        +INSTANCE$ PatrolBehaviour
+    }
+
+    class HuntBehaviour {
+        +SURGE_STEPS$ int = 2
+        +INSTANCE$ HuntBehaviour
+    }
+
+    class AlertBehaviour {
+        +INSTANCE$ AlertBehaviour
+    }
+
+    class SentinelBehaviour {
+        +INSTANCE$ SentinelBehaviour
+        -nextAfter(Direction)$ Direction
+    }
+
+    class AStarPathfinder {
+        +findPath(GameMap, Position, Position)$ List~Position~
+    }
 
     GuardBehaviour <|.. PatrolBehaviour
     GuardBehaviour <|.. HuntBehaviour
     GuardBehaviour <|.. AlertBehaviour
+    GuardBehaviour <|.. SentinelBehaviour
 
-    Guard "1" *-- "1" GuardState : immutable snapshot
-    GuardState ..> GuardMode
-    Patroller ..> PatrolBehaviour : delegates
-    Hunter ..> HuntBehaviour : delegates
-    Hunter ..> AlertBehaviour : delegates
+    Patroller ..> PatrolBehaviour
+    Hunter ..> HuntBehaviour
+    Hunter ..> AlertBehaviour
+    Sentinel ..> SentinelBehaviour
+
     HuntBehaviour ..> AStarPathfinder : pursues with
     AlertBehaviour ..> AStarPathfinder : searches with
 ```
-
-> **Why `GuardState` is a record.** A guard's whole condition — where it stands,
-> what mode it is in, how far along its route it is, where it last saw the
-> player, how long it will keep searching, and whether it surged last turn — is
-> one immutable value. A
-> `GuardMoveCommand` undoes itself by putting the previous value back, so undo
-> is exact by construction rather than by remembering to reverse each field.
 
 ### 5.3.3 Vision, levels and progress
 

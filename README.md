@@ -4,7 +4,7 @@
 
 ![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
 ![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-205%20passing-success)
+![Tests](https://img.shields.io/badge/tests-219%20passing-success)
 ![No dependencies](https://img.shields.io/badge/runtime%20dependencies-none-blue)
 ![Licence](https://img.shields.io/badge/licence-MIT-green)
 
@@ -87,7 +87,7 @@ mvn -q test
 
 ## Under the hood
 
-**The rules know nothing about the screen.** All 2,704 lines of game logic — the
+**The rules know nothing about the screen.** All 2,940 lines of game logic — the
 fog, the pathfinding, the guards, the undo stack, the scoring — contain no
 reference to Swing or AWT, and
 [a test](src/test/java/com/signallost/ArchitectureTest.java) fails the build if
@@ -137,7 +137,6 @@ The detail that used to live here, moved somewhere it can be read on purpose:
 
 | Step | What it adds |
 | --- | --- |
-| 5 | A sentinel guard with a rotating vision cone |
 | 7 | SRS document and UML class and sequence diagrams |
 | 8 | Phase 2: a Spring Boot and PostgreSQL leaderboard with a daily level |
 

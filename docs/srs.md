@@ -196,12 +196,25 @@ Progress is a Java properties file. Both formats are specified in
 | FR-3.3 | A guard shall be in exactly one of three modes: PATROL, ALERT, HUNT | `GuardTest` |
 | FR-3.4 | A hunter shall move two tiles on alternate turns, so that it gains on a fleeing player **(derived)** | `GuardTest` |
 | FR-3.5 | A hunter that loses the player shall return to PATROL after searching | `AlarmTest` |
+| FR-3.6 | A sentinel shall never leave its post | `SentinelTest` |
+| FR-3.7 | A sentinel shall see only a ninety-degree cone in the direction it faces, widening by one tile per tile of distance | `SentinelTest` |
+| FR-3.8 | A sentinel shall turn one quarter clockwise each turn, repeating its sweep every four turns | `SentinelTest` |
+| FR-3.9 | On an alarm a sentinel shall face the sighting and hold for three turns, then resume sweeping | `SentinelTest` |
+| FR-3.10 | A sentinel shall never enter HUNT mode, and therefore shall never capture the player | `SentinelTest` |
 
 > **FR-3.4 rationale.** A hunter moving at exactly the player's speed never
 > closes the gap, so a chase froze at whatever distance it started and the
 > hunter appeared to escort the player. Moving at a net half tile per turn means
 > running in a straight line loses and breaking line of sight wins, which is the
 > behaviour the game is about.
+
+> **FR-3.7 note.** The cone narrows what the guard can see; it does not widen
+> it. A sentinel's watched tiles are the ordinary flood fill intersected with
+> the wedge, so a tile has to be both in front of it and reachable by sight.
+> That keeps one rule for walls across the whole game rather than a second one
+> for cameras — a sentinel's sight still bends around a corner if the flood fill
+> does, which is consistent rather than realistic, and consistency is what the
+> player can learn.
 
 #### FR-4 — Detection and the alarm
 
@@ -331,6 +344,7 @@ exactly that, which is why they carry no drawing logic.
 | Turns, movement | FR-2.1 – FR-2.4, NFR-4 | `GameStateTest`, `TurnWithGuardsTest` |
 | Turn limit | FR-2.5 | `TurnLimitTest` |
 | Guards | FR-3.1 – FR-3.4 | `GuardTest` |
+| Sentinel | FR-3.6 – FR-3.10 | `SentinelTest` |
 | Pathfinding | FR-3.2 | `AStarPathfinderTest` |
 | Alarm | FR-3.5, FR-4.3 | `AlarmTest` |
 | Detection | FR-4.1, FR-4.4 | `SpottingTest` |
@@ -352,7 +366,7 @@ exactly that, which is why they carry no drawing logic.
 | Screen flow | UI-1, UI-2 | `KeyBindingTest` |
 | Artwork | — | `CritterArtTest` |
 
-**25 test classes, 205 tests, all passing.**
+**26 test classes, 219 tests, all passing.**
 
 ---
 
@@ -403,8 +417,10 @@ An SRS that lists only what was achieved is a sales document.
 
 | From the brief | Status |
 | --- | --- |
-| **A sentinel guard with a rotating vision cone** | Not built. `GuardFactory` and the `GuardBehaviour` interface are the extension points it would use; no other code would change. This is the one guard type of the three in the brief that does not exist. |
 | **Spring Boot and PostgreSQL leaderboard** | Phase 2, not started. Deliberately deferred. |
+
+The sentinel guard, listed here as missing in version 1.0, was built afterwards
+and is specified as FR-3.6 to FR-3.9.
 
 ### 6.2 Partially met
 

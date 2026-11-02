@@ -36,7 +36,7 @@ guards and levels.
 
 The completed system has ten levels, six playable characters, three lives per
 run, a limited hint system, a star rating based on turns taken and times seen,
-and saved progress for each player. It is verified by 205 automated tests in 25
+and saved progress for each player. It is verified by 219 automated tests in 26
 test classes. These include an architectural test that fails the build if the
 game rules ever refer to the user interface, and a fairness test that checks
 every level can be completed. Level difficulty was calibrated using an
@@ -104,10 +104,11 @@ The system does not use a network, does not store data remotely, and has no
 account system, multiplayer or sound. A Spring Boot and PostgreSQL leaderboard
 is planned as a second phase and is not implemented.
 
-One of the three guard types described in the original proposal, a stationary
-sentinel with a rotating vision cone, is not implemented. The extension points
-it would use already exist. Other gaps are recorded in Section 8.3 and in the
-accompanying Software Requirements Specification.
+All three guard types described in the original proposal are implemented: a
+patroller that walks a route, a hunter that pursues with A*, and a stationary
+sentinel whose vision cone sweeps a quarter-turn each turn. Remaining gaps are
+recorded in Section 8.3 and in the accompanying Software Requirements
+Specification.
 
 ---
 
@@ -151,6 +152,10 @@ testing or play revealed a fault.
 | FR-3.2 | A hunter moves towards the player's last known position using A* | `GuardTest`, `AStarPathfinderTest` |
 | FR-3.3 | A guard is in exactly one of three modes: PATROL, ALERT, HUNT | `GuardTest` |
 | FR-3.4 | **(D)** A hunter moves two tiles on alternate turns, so it gains on a fleeing player | `GuardTest` |
+| FR-3.5 | A sentinel never leaves its post and never hunts, so it cannot capture anybody | `SentinelTest` |
+| FR-3.6 | A sentinel sees only a ninety-degree cone in the direction it faces | `SentinelTest` |
+| FR-3.7 | A sentinel turns one quarter clockwise each turn, repeating every four turns | `SentinelTest` |
+| FR-3.8 | On an alarm a sentinel faces the sighting and holds for three turns | `SentinelTest` |
 | FR-4.1 | A turn ending inside a guard's line of sight counts as a sighting | `SpottingTest` |
 | FR-4.2 | A sighting raises an alarm, which puts every hunter into HUNT mode | `AlarmTest` |
 | FR-4.3 | Sightings are counted for the whole run, not per attempt | `ScoreTest` |
@@ -327,20 +332,31 @@ player, a `GuardMoveCommand` for each guard, and an `AlarmCommand` if the player
 was seen. Undoing a turn means undoing each part in reverse order, so nothing
 can be missed.
 
-#### 5.3.2 Guards: State, Strategy and Observer
+#### 5.3.2 Guards: the three types and their shared state
 
-![Guards: State, Strategy and Observer](diagrams/5.3.2-guards-state-strategy-and-observer-together.png)
+![Guards: the three types](diagrams/5.3.2-guards-the-three-types-and-their-shared-state.png)
+
+Every guard is the same thing from outside: something with a position, a mode
+and a set of tiles it can see. `GuardState` is an immutable record holding that
+whole condition. A guard does not change itself; it calculates a new state and
+has one applied. This is what makes undo exact, because `GuardMoveCommand`
+restores the previous record rather than trying to reverse each field.
+
+Sight is a single method on `Guard`, so the sentinel narrows it to a cone by
+overriding that method rather than by introducing a new concept. Everything that
+asks what a guard can see — the red overlay, the spotting check, the level
+fairness test — goes through it, and none of them needed changing when a third
+guard type was added.
+
+#### 5.3.2.1 Guards: Strategy and Observer
+
+![Guards: Strategy and Observer](diagrams/5.3.2.1-guards-strategy-and-observer.png)
 
 Three patterns meet at the guard. `GuardMode` is the State and decides which
-behaviour applies. `GuardBehaviour` is the Strategy, with three stateless
+behaviour applies. `GuardBehaviour` is the Strategy, with four stateless
 implementations selected by that mode. `AlarmListener` is the Observer, through
 which one guard's sighting reaches every other guard without any of them holding
 a reference to the others.
-
-`GuardState` is an immutable record holding a guard's whole condition. A guard
-does not change itself; it calculates a new state and has one applied. This is
-what makes undo exact, because `GuardMoveCommand` restores the previous record
-rather than trying to reverse each field.
 
 #### 5.3.3 Vision, levels and progress
 
@@ -412,10 +428,13 @@ than a layer of an unfinished one.
 | 4 | Detection, line-of-sight overlay, turn limit |
 | 6 | Ten levels, title screen, player names, saved progress |
 | 7 | This report, the SRS and the UML diagrams |
+| 5 | The sentinel guard, built last |
 
-Stage 5, the sentinel guard, was deferred in favour of stage 6, on the judgement
-that a complete game with two guard types shows more than an incomplete one with
-three. Stage 8, the Spring Boot leaderboard, is phase 2.
+Stage 5 was deferred in favour of stage 6, on the judgement that a complete game
+with two guard types shows more than an incomplete one with three, and built
+once the rest was finished. Taking it last turned out to be the cheaper order:
+by then `GuardBehaviour` and `GuardFactory` had settled, so the sentinel was an
+addition rather than a change. Stage 8, the Spring Boot leaderboard, is phase 2.
 
 ### 6.2 Version control
 
@@ -585,9 +604,9 @@ check guard behaviour against expectation.
 ### 8.1 Summary
 
 Signal Lost was delivered as a complete, playable turn-based stealth game in
-Java, with ten levels, six characters, two guard types, exact undo, a limited
-hint system, star-based scoring and saved progress. The rules are 2,704 lines
-across six packages and are verified by 205 automated tests in 25 test classes.
+Java, with ten levels, six characters, three guard types, exact undo, a limited
+hint system, star-based scoring and saved progress. The rules are 2,940 lines
+across six packages and are verified by 219 automated tests in 26 test classes.
 
 All seven objectives in Section 2.2 were met. Fog of war is a bounded
 breadth-first flood fill, pursuit uses A* with a Manhattan heuristic and a
@@ -613,7 +632,6 @@ wrong twice, each time reporting winnable levels as unwinnable.
 
 ### 8.3 Limitations
 
-- The sentinel guard with a rotating vision cone is not implemented.
 - No performance budget is measured; NFR-1 is claimed rather than verified.
 - Nothing in the game teaches its rules. A new player learns that red tiles are
   watched, and that only hunters capture, by being caught.
@@ -626,7 +644,7 @@ wrong twice, each time reporting winnable levels as unwinnable.
 
 | Term | Work |
 | --- | --- |
-| Near | The sentinel guard; an in-game tutorial; a colour-blind-safe line-of-sight overlay |
+| Near | An in-game tutorial; a colour-blind-safe line-of-sight overlay |
 | Phase 2 | The Spring Boot and PostgreSQL leaderboard with daily levels. `Score` and `LevelResult` are already plain data records for this purpose |
 | Longer | An Android release. Because the rules import no user-interface type, this needs a new interface layer rather than a new game; the only rules-layer change identified is giving `ProgressStore` a platform-appropriate path |
 
