@@ -45,9 +45,11 @@ class CharacterSelectView extends View {
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
         paint.setTextSize(getHeight() * 0.075f);
-        canvas.drawText("CHOOSE A CHARACTER", getWidth() * 0.22f, getHeight() * 0.11f, paint);
+        paint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText("CHOOSE A CHARACTER", getWidth() / 2f, getHeight() * 0.11f, paint);
+        paint.setTextAlign(Paint.Align.LEFT);
         paint.setFakeBoldText(false);
-        BackArrow.paint(canvas, paint, getWidth(), getHeight(), "NAME");
+        BackArrow.paint(canvas, paint, getWidth(), getHeight());
 
         for (int i = 0; i < roster.length; i++) {
             drawCard(canvas, i);

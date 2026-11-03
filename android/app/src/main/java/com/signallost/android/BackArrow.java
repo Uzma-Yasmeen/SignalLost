@@ -21,19 +21,26 @@ final class BackArrow {
     static RectF bounds(int width, int height) {
         float size = height * 0.115f;
         float margin = height * 0.045f;
-        return new RectF(margin, margin, margin + size * 1.6f, margin + size);
+        return new RectF(margin, margin, margin + size, margin + size);
     }
 
-    static void paint(Canvas canvas, Paint paint, int width, int height, String label) {
+    /**
+     * A chevron and nothing else.
+     *
+     * <p>It used to name the screen it led back to. Correct, and wrong for a
+     * game: labels make a screen read as an application. Everyone knows what a
+     * backwards arrow does.
+     */
+    static void paint(Canvas canvas, Paint paint, int width, int height) {
         RectF box = bounds(width, height);
 
         paint.setColor(Palette.BUTTON);
         canvas.drawRoundRect(box, box.height() * 0.32f, box.height() * 0.32f, paint);
 
         // A chevron rather than a glyph, so it needs no font to be present.
-        float cx = box.left + box.height() * 0.55f;
+        float cx = box.centerX();
         float cy = box.centerY();
-        float arm = box.height() * 0.2f;
+        float arm = box.height() * 0.22f;
         Path chevron = new Path();
         chevron.moveTo(cx + arm * 0.5f, cy - arm);
         chevron.lineTo(cx - arm * 0.5f, cy);
@@ -43,9 +50,5 @@ final class BackArrow {
         paint.setColor(Palette.TEXT);
         canvas.drawPath(chevron, paint);
         paint.setStyle(Paint.Style.FILL);
-
-        paint.setColor(Palette.TEXT_DIM);
-        paint.setTextSize(box.height() * 0.38f);
-        canvas.drawText(label, cx + arm * 1.2f, cy + box.height() * 0.14f, paint);
     }
 }

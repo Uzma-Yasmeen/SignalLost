@@ -48,8 +48,10 @@ class LevelSelectView extends View {
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
         paint.setTextSize(getHeight() * 0.075f);
-        canvas.drawText("CHOOSE A LEVEL", getWidth() * 0.22f, getHeight() * 0.11f, paint);
-        BackArrow.paint(canvas, paint, getWidth(), getHeight(), "CHARACTER");
+        paint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText("CHOOSE A LEVEL", getWidth() / 2f, getHeight() * 0.11f, paint);
+        paint.setTextAlign(Paint.Align.LEFT);
+        BackArrow.paint(canvas, paint, getWidth(), getHeight());
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
         paint.setTextSize(getHeight() * 0.075f);
@@ -59,7 +61,9 @@ class LevelSelectView extends View {
         paint.setTextSize(getHeight() * 0.045f);
         String tally = profile.name() + "   ·   " + profile.totalStars()
                 + " of " + (levels.size() * 3) + " stars";
-        canvas.drawText(tally, getWidth() * 0.22f, getHeight() * 0.17f, paint);
+        paint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText(tally, getWidth() / 2f, getHeight() * 0.17f, paint);
+        paint.setTextAlign(Paint.Align.LEFT);
 
         for (int i = 0; i < levels.size(); i++) {
             drawBox(canvas, i);

@@ -99,10 +99,11 @@ class TitleView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_UP) {
+        if (event.getAction() == MotionEvent.ACTION_UP
+                && startButton().contains(event.getX(), event.getY())) {
             performClick();
-            // The whole screen starts the game, not only the button. A title
-            // screen that makes you find a target is a title screen fighting you.
+            // Only the button starts the game. Starting on a tap anywhere meant
+            // a stray touch while reading the screen threw you into name entry.
             onStart.run();
         }
         return true;
