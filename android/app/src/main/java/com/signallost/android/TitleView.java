@@ -22,11 +22,13 @@ class TitleView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final String greeting;
     private final Runnable onStart;
+    private final Runnable onQuit;
 
-    TitleView(Context context, String greeting, Runnable onStart) {
+    TitleView(Context context, String greeting, Runnable onStart, Runnable onQuit) {
         super(context);
         this.greeting = greeting;
         this.onStart = onStart;
+        this.onQuit = onQuit;
         setBackgroundColor(Palette.BACKDROP);
     }
 
@@ -55,7 +57,8 @@ class TitleView extends View {
             canvas.drawText(greeting, midX, midY + getHeight() * 0.11f, paint);
         }
 
-        drawStartButton(canvas, midX);
+        drawButton(canvas, startButton(), "START", Palette.ACCENT, Palette.TEXT);
+        drawButton(canvas, quitButton(), "QUIT", Palette.BUTTON_EDGE, Palette.TEXT_DIM);
         paint.setTextAlign(Paint.Align.LEFT);
     }
 
@@ -68,28 +71,43 @@ class TitleView extends View {
         }
     }
 
-    private void drawStartButton(Canvas canvas, float midX) {
-        RectF button = startButton();
+    private void drawButton(Canvas canvas, RectF button, String label, int edge, int text) {
         paint.setColor(Palette.BUTTON);
         canvas.drawRoundRect(button, button.height() / 2, button.height() / 2, paint);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(3);
-        paint.setColor(Palette.BUTTON_EDGE);
+        paint.setColor(edge);
         canvas.drawRoundRect(button, button.height() / 2, button.height() / 2, paint);
         paint.setStyle(Paint.Style.FILL);
 
-        paint.setColor(Palette.TEXT);
+        paint.setColor(text);
         paint.setTextSize(button.height() * 0.42f);
         paint.setFakeBoldText(true);
-        canvas.drawText("START", midX, button.centerY() + button.height() * 0.15f, paint);
+        canvas.drawText(label, button.centerX(), button.centerY() + button.height() * 0.15f, paint);
         paint.setFakeBoldText(false);
     }
 
     private RectF startButton() {
         float width = Math.min(getWidth() * 0.34f, 520);
-        float height = getHeight() * 0.13f;
-        float top = getHeight() * 0.76f;
+        float height = getHeight() * 0.125f;
+        float top = getHeight() * 0.7f;
         return new RectF((getWidth() - width) / 2, top, (getWidth() + width) / 2, top + height);
+    }
+
+    /**
+     * A way out of the game, from the screen a player comes back to.
+     *
+     * <p>Android's own gesture closes an app, but a game that only offers the
+     * system's way out is a game that never says goodbye. It sits under START,
+     * smaller and in a quieter colour, so it is findable without competing.
+     */
+    private RectF quitButton() {
+        RectF start = startButton();
+        float width = start.width() * 0.56f;
+        float height = start.height() * 0.78f;
+        float top = start.bottom + getHeight() * 0.035f;
+        return new RectF(getWidth() / 2f - width / 2, top, getWidth() / 2f + width / 2,
+                top + height);
     }
 
     @Override
@@ -99,12 +117,17 @@ class TitleView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_UP
-                && startButton().contains(event.getX(), event.getY())) {
+        if (event.getAction() != MotionEvent.ACTION_UP) {
+            return true;
+        }
+        // Only the buttons do anything. Starting on a tap anywhere meant a
+        // stray touch while reading the screen threw you into name entry.
+        if (startButton().contains(event.getX(), event.getY())) {
             performClick();
-            // Only the button starts the game. Starting on a tap anywhere meant
-            // a stray touch while reading the screen threw you into name entry.
             onStart.run();
+        } else if (quitButton().contains(event.getX(), event.getY())) {
+            performClick();
+            onQuit.run();
         }
         return true;
     }

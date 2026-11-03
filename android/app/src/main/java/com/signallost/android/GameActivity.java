@@ -65,7 +65,7 @@ public class GameActivity extends Activity {
         String greeting = (profile != null && profile.totalStars() > 0)
                 ? "welcome back, " + profile.name() + "  ·  " + profile.totalStars() + " stars"
                 : null;
-        show(new TitleView(this, greeting, this::showNameEntry));
+        show(new TitleView(this, greeting, this::showNameEntry, this::finish));
     }
 
     private void showNameEntry() {

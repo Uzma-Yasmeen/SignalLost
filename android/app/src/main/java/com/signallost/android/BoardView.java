@@ -97,19 +97,54 @@ class BoardView extends View {
         return getHeight() * (1 - FOOTER);
     }
 
+    /**
+     * Big enough to read, even when that means the board does not all fit.
+     *
+     * <p>Fitting the whole level on the glass sounds right and is not: level 1
+     * is eleven rows and came out at 78 pixels a tile, level 10 is fifteen and
+     * came out at 57. The later levels are where a player most needs to see
+     * what they are doing, and they were the hardest to look at.
+     *
+     * <p>So a tile never goes below the size eleven rows would give it, and
+     * anything taller than that scrolls. The fog makes this cost less than it
+     * sounds: most of a level is unexplored or remembered, and what matters is
+     * nearly always within a few tiles of where you are standing.
+     */
     private int tileSize() {
         GameMap map = state.map();
         float usableHeight = footerTop() - headerBottom();
-        return (int) Math.min(getWidth() / (float) map.cols(), usableHeight / map.rows());
+        float fitted = Math.min(getWidth() / (float) map.cols(), usableHeight / map.rows());
+        float readable = usableHeight / 11f;
+        return (int) Math.max(fitted, readable);
+    }
+
+    /**
+     * Keeps the player in view, and the board's edges on screen where possible.
+     *
+     * <p>Centring on the player always would leave half the screen empty at the
+     * edges of a level, so the view is clamped: it follows while there is board
+     * to show and stops when the edge is reached.
+     */
+    private static float follow(float viewSize, float boardSize, float playerCentre, float origin) {
+        if (boardSize <= viewSize) {
+            return origin + (viewSize - boardSize) / 2;
+        }
+        float wanted = origin + viewSize / 2 - playerCentre;
+        float furthest = origin;
+        float nearest = origin + viewSize - boardSize;
+        return Math.max(nearest, Math.min(furthest, wanted));
     }
 
     private float boardLeft() {
-        return (getWidth() - tileSize() * state.map().cols()) / 2f;
+        int tile = tileSize();
+        return follow(getWidth(), tile * state.map().cols(),
+                (state.player().col() + 0.5f) * tile, 0);
     }
 
     private float boardTop() {
-        return headerBottom()
-                + (footerTop() - headerBottom() - tileSize() * state.map().rows()) / 2f;
+        int tile = tileSize();
+        return follow(footerTop() - headerBottom(), tile * state.map().rows(),
+                (state.player().row() + 0.5f) * tile, headerBottom());
     }
 
     private RectF tileAt(Position at) {
@@ -126,6 +161,11 @@ class BoardView extends View {
         canvas.drawColor(Palette.BACKDROP);
         GameMap map = state.map();
 
+        // The board can now be taller than the space between the bars, so
+        // anything outside that band is clipped rather than drawn over them.
+        canvas.save();
+        canvas.clipRect(0, headerBottom(), getWidth(), footerTop());
+
         for (int row = 0; row < map.rows(); row++) {
             for (int col = 0; col < map.cols(); col++) {
                 drawTile(canvas, map, new Position(row, col));
@@ -137,6 +177,8 @@ class BoardView extends View {
             drawHint(canvas);
         }
         drawPlayer(canvas);
+        canvas.restore();
+
         drawHeader(canvas);
         drawFooter(canvas);
         drawVerdict(canvas);
@@ -334,8 +376,16 @@ class BoardView extends View {
 
     // -------------------------------------------------------------- verdict
 
+    /**
+     * Whether play has stopped and the player is owed an explanation.
+     *
+     * <p>Being caught used to print one line and carry on at the next tap,
+     * which meant the board jumped back to the start with no account of why.
+     * Losing a life is the most important thing that happens in a run; it gets
+     * the same full stop that escaping does.
+     */
     private boolean verdictShowing() {
-        return state.hasEscaped() || state.isRunOver() || state.hasFailed();
+        return state.hasEscaped() || state.isRunOver() || state.hasFailed() || state.isCaught();
     }
 
     private RectF verdictButton(boolean left) {
@@ -356,56 +406,66 @@ class BoardView extends View {
     }
 
     private void drawVerdict(Canvas canvas) {
-        if (!verdictShowing() && !state.isCaught()) {
+        if (!verdictShowing()) {
             return;
         }
-        if (state.isCaught() && !state.isRunOver()) {
-            // A lost life is a nudge, not a full stop.
-            paint.setColor(Palette.withAlpha(Palette.DANGER, 220));
-            paint.setTextAlign(Paint.Align.CENTER);
-            paint.setTextSize(getHeight() * 0.05f);
-            canvas.drawText("CAUGHT  ·  " + state.livesLeft() + " lives left  ·  tap to carry on",
-                    getWidth() / 2f, headerBottom() + getHeight() * 0.08f, paint);
-            paint.setTextAlign(Paint.Align.LEFT);
-            return;
-        }
+        boolean escaped = state.hasEscaped();
+        boolean caughtWithLives = state.isCaught() && !state.isRunOver();
 
         RectF banner = verdictBanner();
         paint.setColor(Palette.withAlpha(Palette.BACKDROP, 243));
         canvas.drawRoundRect(banner, 30, 30, paint);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(3);
-        paint.setColor(state.hasEscaped() ? Palette.EXIT_OPEN : Palette.DANGER);
+        paint.setColor(escaped ? Palette.EXIT_OPEN : Palette.DANGER);
         canvas.drawRoundRect(banner, 30, 30, paint);
         paint.setStyle(Paint.Style.FILL);
 
+        String headline;
+        if (escaped) {
+            headline = "ESCAPED";
+        } else if (state.isRunOver()) {
+            headline = "RUN OVER";
+        } else if (caughtWithLives) {
+            headline = "CAUGHT";
+        } else {
+            headline = "OUT OF TURNS";
+        }
+
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setColor(state.hasEscaped() ? Palette.EXIT_OPEN : Palette.DANGER);
+        paint.setColor(escaped ? Palette.EXIT_OPEN : Palette.DANGER);
         paint.setFakeBoldText(true);
         paint.setTextSize(banner.height() * 0.19f);
-        canvas.drawText(state.hasEscaped() ? "ESCAPED" : (state.isRunOver() ? "RUN OVER"
-                : "OUT OF TURNS"), banner.centerX(), banner.top + banner.height() * 0.26f, paint);
+        canvas.drawText(headline, banner.centerX(), banner.top + banner.height() * 0.26f, paint);
         paint.setFakeBoldText(false);
 
-        if (state.hasEscaped()) {
+        paint.setColor(Palette.TEXT_DIM);
+        paint.setTextSize(banner.height() * 0.082f);
+        if (escaped) {
             Score score = state.score();
             drawStars(canvas, banner, score.stars());
-            paint.setColor(Palette.TEXT_DIM);
-            paint.setTextSize(banner.height() * 0.082f);
             canvas.drawText(score.turns() + " turns, par " + score.par()
                             + "   ·   seen " + score.sightings(),
                     banner.centerX(), banner.top + banner.height() * 0.58f, paint);
+        } else if (caughtWithLives) {
+            canvas.drawText("a hunter reached you", banner.centerX(),
+                    banner.top + banner.height() * 0.4f, paint);
+            paint.setColor(state.livesLeft() <= 1 ? Palette.DANGER : Palette.TEXT);
+            paint.setTextSize(banner.height() * 0.1f);
+            canvas.drawText(state.livesLeft() + (state.livesLeft() == 1 ? " life left" : " lives left"),
+                    banner.centerX(), banner.top + banner.height() * 0.53f, paint);
+        } else if (state.isRunOver()) {
+            canvas.drawText("no lives left", banner.centerX(),
+                    banner.top + banner.height() * 0.45f, paint);
         } else {
-            paint.setColor(Palette.TEXT_DIM);
-            paint.setTextSize(banner.height() * 0.082f);
-            canvas.drawText("better luck next time",
-                    banner.centerX(), banner.top + banner.height() * 0.45f, paint);
+            canvas.drawText("the clock ran out", banner.centerX(),
+                    banner.top + banner.height() * 0.45f, paint);
         }
 
-        drawVerdictButton(canvas, verdictButton(true), "LEVELS", Palette.BUTTON);
-        drawVerdictButton(canvas, verdictButton(false),
-                state.hasEscaped() ? "CONTINUE" : "RETRY",
-                state.hasEscaped() ? Palette.EXIT_OPEN : Palette.DANGER);
+        drawVerdictButton(canvas, verdictButton(true), "LEVELS", Palette.BUTTON_EDGE);
+        String onward = escaped ? "CONTINUE" : (caughtWithLives ? "TRY AGAIN" : "RESTART");
+        drawVerdictButton(canvas, verdictButton(false), onward,
+                escaped ? Palette.EXIT_OPEN : Palette.DANGER);
         paint.setTextAlign(Paint.Align.LEFT);
     }
 
@@ -478,11 +538,16 @@ class BoardView extends View {
 
     private void handleRelease(float x, float y) {
         if (verdictShowing()) {
+            // Nothing else on the board responds while a verdict is up. Tapping
+            // anywhere used to dismiss it, which is how a lost life went by
+            // without the player knowing what had happened.
             if (verdictButton(true).contains(x, y)) {
                 onLeave.run();
             } else if (verdictButton(false).contains(x, y)) {
                 if (state.hasEscaped()) {
                     onNext.run();
+                } else if (state.isCaught() && !state.isRunOver()) {
+                    state.beginNextLife();
                 } else {
                     load(levelName);
                 }
@@ -537,9 +602,6 @@ class BoardView extends View {
 
     private void stepTowards(float x, float y) {
         if (state.isAttemptOver()) {
-            if (state.isCaught() && !state.isRunOver()) {
-                state.beginNextLife();
-            }
             return;
         }
         int tile = tileSize();
