@@ -30,11 +30,14 @@ class LevelSelectView extends View {
     private final List<LevelCatalog.Entry> levels = LevelCatalog.load();
     private final PlayerProfile profile;
     private final Consumer<String> onChosen;
+    private final Runnable onBack;
 
-    LevelSelectView(Context context, PlayerProfile profile, Consumer<String> onChosen) {
+    LevelSelectView(Context context, PlayerProfile profile, Consumer<String> onChosen,
+                    Runnable onBack) {
         super(context);
         this.profile = profile;
         this.onChosen = onChosen;
+        this.onBack = onBack;
         setBackgroundColor(Palette.BACKDROP);
     }
 
@@ -45,14 +48,18 @@ class LevelSelectView extends View {
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
         paint.setTextSize(getHeight() * 0.075f);
-        canvas.drawText("CHOOSE A LEVEL", getWidth() * 0.04f, getHeight() * 0.11f, paint);
+        canvas.drawText("CHOOSE A LEVEL", getWidth() * 0.22f, getHeight() * 0.11f, paint);
+        BackArrow.paint(canvas, paint, getWidth(), getHeight(), "CHARACTER");
+        paint.setColor(Palette.TEXT);
+        paint.setFakeBoldText(true);
+        paint.setTextSize(getHeight() * 0.075f);
 
         paint.setFakeBoldText(false);
         paint.setColor(Palette.TEXT_DIM);
         paint.setTextSize(getHeight() * 0.045f);
         String tally = profile.name() + "   ·   " + profile.totalStars()
                 + " of " + (levels.size() * 3) + " stars";
-        canvas.drawText(tally, getWidth() * 0.04f, getHeight() * 0.17f, paint);
+        canvas.drawText(tally, getWidth() * 0.22f, getHeight() * 0.17f, paint);
 
         for (int i = 0; i < levels.size(); i++) {
             drawBox(canvas, i);
@@ -146,6 +153,10 @@ class LevelSelectView extends View {
             return true;
         }
         performClick();
+        if (BackArrow.bounds(getWidth(), getHeight()).contains(event.getX(), event.getY())) {
+            onBack.run();
+            return true;
+        }
         for (int i = 0; i < levels.size(); i++) {
             LevelCatalog.Entry level = levels.get(i);
             if (boxAt(i).contains(event.getX(), event.getY())

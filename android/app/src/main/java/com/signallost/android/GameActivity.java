@@ -72,7 +72,7 @@ public class GameActivity extends Activity {
         show(new NameView(this, profile == null ? null : profile.name(), chosen -> {
             profile = store.loadFor(chosen);
             showCharacterSelect();
-        }));
+        }, this::showTitle));
     }
 
     private void showCharacterSelect() {
@@ -80,12 +80,13 @@ public class GameActivity extends Activity {
         show(new CharacterSelectView(this, critter, picked -> {
             critter = picked;
             showLevelSelect();
-        }));
+        }, this::showNameEntry));
     }
 
     private void showLevelSelect() {
         board = null;
-        show(new LevelSelectView(this, profile, this::startLevel));
+        show(new LevelSelectView(this, profile, this::startLevel,
+                this::showCharacterSelect));
     }
 
     private void startLevel(String levelName) {
@@ -123,6 +124,14 @@ public class GameActivity extends Activity {
         }
     }
 
+    /**
+     * The hardware back button follows the same path the on-screen one does.
+     *
+     * <p>In a level it undoes, because that is what a player pressing back in a
+     * turn-based game means. With nothing left to undo it steps out to the
+     * levels, and from there back through the character and name screens to the
+     * title, where it finally leaves the game.
+     */
     @Override
     public void onBackPressed() {
         if (board != null) {
@@ -134,6 +143,15 @@ public class GameActivity extends Activity {
             }
             return;
         }
-        super.onBackPressed();
+        View current = root.getChildCount() > 0 ? root.getChildAt(0) : null;
+        if (current instanceof LevelSelectView) {
+            showCharacterSelect();
+        } else if (current instanceof CharacterSelectView) {
+            showNameEntry();
+        } else if (current instanceof NameView) {
+            showTitle();
+        } else {
+            super.onBackPressed();
+        }
     }
 }

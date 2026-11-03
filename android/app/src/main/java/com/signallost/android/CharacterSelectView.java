@@ -26,12 +26,15 @@ class CharacterSelectView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Critter[] roster = Critter.values();
     private final Consumer<Critter> onChosen;
+    private final Runnable onBack;
     private Critter chosen;
 
-    CharacterSelectView(Context context, Critter current, Consumer<Critter> onChosen) {
+    CharacterSelectView(Context context, Critter current, Consumer<Critter> onChosen,
+                        Runnable onBack) {
         super(context);
         this.chosen = current == null ? Critter.defaultChoice() : current;
         this.onChosen = onChosen;
+        this.onBack = onBack;
         setBackgroundColor(Palette.BACKDROP);
     }
 
@@ -42,8 +45,9 @@ class CharacterSelectView extends View {
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
         paint.setTextSize(getHeight() * 0.075f);
-        canvas.drawText("CHOOSE A CHARACTER", getWidth() * 0.04f, getHeight() * 0.11f, paint);
+        canvas.drawText("CHOOSE A CHARACTER", getWidth() * 0.22f, getHeight() * 0.11f, paint);
         paint.setFakeBoldText(false);
+        BackArrow.paint(canvas, paint, getWidth(), getHeight(), "NAME");
 
         for (int i = 0; i < roster.length; i++) {
             drawCard(canvas, i);
@@ -145,6 +149,10 @@ class CharacterSelectView extends View {
             return true;
         }
         performClick();
+        if (BackArrow.bounds(getWidth(), getHeight()).contains(event.getX(), event.getY())) {
+            onBack.run();
+            return true;
+        }
         if (playButton().contains(event.getX(), event.getY())) {
             onChosen.accept(chosen);
             return true;

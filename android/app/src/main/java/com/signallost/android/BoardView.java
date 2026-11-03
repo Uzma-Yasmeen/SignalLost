@@ -38,8 +38,12 @@ import java.util.function.BiConsumer;
 @SuppressLint("ViewConstructor")
 class BoardView extends View {
 
-    private static final float HEADER = 0.115f;
-    private static final float FOOTER = 0.145f;
+    // The board is limited by height in landscape, so every pixel these bars
+    // take comes straight off the tiles. They are as thin as a reliable touch
+    // target allows: the footer still clears the 48dp minimum, and the header
+    // carries no buttons so it can be thinner still.
+    private static final float HEADER = 0.085f;
+    private static final float FOOTER = 0.125f;
 
     private static final int UNDO = 0;
     private static final int HINT = 1;

@@ -30,7 +30,8 @@ import java.util.function.Consumer;
 @SuppressLint("ViewConstructor")
 class NameView extends LinearLayout {
 
-    NameView(Context context, String current, Consumer<String> onChosen) {
+    NameView(Context context, String current, Consumer<String> onChosen,
+             Runnable onBack) {
         super(context);
         setOrientation(VERTICAL);
         setGravity(Gravity.CENTER);
@@ -87,6 +88,20 @@ class NameView extends LinearLayout {
             hideKeyboard(field);
             onChosen.accept(chosen.length() > 40 ? chosen.substring(0, 40) : chosen);
         };
+
+        Button back = new Button(context);
+        back.setText("BACK");
+        back.setTextColor(Palette.TEXT_DIM);
+        back.setAllCaps(true);
+        back.setBackground(rounded(Palette.PANEL));
+        LayoutParams backSize = new LayoutParams(LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT);
+        backSize.topMargin = pad / 2;
+        addView(back, backSize);
+        back.setOnClickListener(v -> {
+            hideKeyboard(field);
+            onBack.run();
+        });
 
         go.setOnClickListener(v -> submit.run());
         field.setOnEditorActionListener((v, actionId, event) -> {
