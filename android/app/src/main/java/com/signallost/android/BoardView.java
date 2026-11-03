@@ -240,6 +240,19 @@ class BoardView extends View {
         }
     }
 
+    /**
+     * Guards, coloured by what they are doing and shaped by what they are.
+     *
+     * <p>Colour alone was telling the player only half the story. A hunter that
+     * had not noticed them yet drew in the same calm blue as a patroller, so
+     * the one guard worth avoiding was invisible among the ones that merely
+     * block a corridor — and by the time it turned red it was already chasing.
+     *
+     * <p>So colour is state and shape is identity: a patroller is a plain
+     * rounded block, a hunter has two spikes, and a sentinel is a lens with the
+     * quarter it is watching marked. Whichever mode it is in, you can see what
+     * it is.
+     */
     private void drawGuards(Canvas canvas) {
         int tile = tileSize();
         for (Guard guard : state.guards()) {
@@ -248,20 +261,52 @@ class BoardView extends View {
             }
             RectF bounds = tileAt(guard.position());
             int colour = colourOf(guard.mode());
+            float cx = bounds.centerX();
+            float cy = bounds.centerY();
+
             paint.setColor(Palette.withAlpha(colour, 50));
-            canvas.drawCircle(bounds.centerX(), bounds.centerY(), tile * 0.6f, paint);
+            canvas.drawCircle(cx, cy, tile * 0.6f, paint);
             paint.setColor(colour);
-            float inset = tile * 0.14f;
-            canvas.drawRoundRect(new RectF(bounds.left + inset, bounds.top + inset,
-                    bounds.right - inset, bounds.bottom - inset), tile * 0.2f, tile * 0.2f, paint);
-            paint.setColor(Palette.BACKDROP);
-            canvas.drawCircle(bounds.centerX() - tile * 0.09f, bounds.centerY() - tile * 0.03f,
-                    tile * 0.06f, paint);
-            canvas.drawCircle(bounds.centerX() + tile * 0.09f, bounds.centerY() - tile * 0.03f,
-                    tile * 0.06f, paint);
+
+            switch (guard.type()) {
+                case "Hunter" -> {
+                    Path spikes = new Path();
+                    spikes.moveTo(cx - tile * 0.3f, cy - tile * 0.1f);
+                    spikes.lineTo(cx - tile * 0.18f, cy - tile * 0.42f);
+                    spikes.lineTo(cx - tile * 0.04f, cy - tile * 0.14f);
+                    spikes.lineTo(cx + tile * 0.04f, cy - tile * 0.14f);
+                    spikes.lineTo(cx + tile * 0.18f, cy - tile * 0.42f);
+                    spikes.lineTo(cx + tile * 0.3f, cy - tile * 0.1f);
+                    spikes.close();
+                    canvas.drawPath(spikes, paint);
+                    float inset = tile * 0.14f;
+                    canvas.drawRoundRect(new RectF(bounds.left + inset, bounds.top + inset,
+                            bounds.right - inset, bounds.bottom - inset),
+                            tile * 0.14f, tile * 0.14f, paint);
+                }
+                case "Sentinel" -> {
+                    canvas.drawCircle(cx, cy, tile * 0.3f, paint);
+                    paint.setColor(Palette.BACKDROP);
+                    canvas.drawCircle(cx, cy, tile * 0.14f, paint);
+                    paint.setColor(colour);
+                }
+                default -> {
+                    float inset = tile * 0.16f;
+                    canvas.drawRoundRect(new RectF(bounds.left + inset, bounds.top + inset,
+                            bounds.right - inset, bounds.bottom - inset),
+                            tile * 0.26f, tile * 0.26f, paint);
+                }
+            }
+
+            if (!"Sentinel".equals(guard.type())) {
+                paint.setColor(Palette.BACKDROP);
+                canvas.drawCircle(cx - tile * 0.09f, cy + tile * 0.02f, tile * 0.055f, paint);
+                canvas.drawCircle(cx + tile * 0.09f, cy + tile * 0.02f, tile * 0.055f, paint);
+            }
         }
     }
 
+    /** Colour says what a guard is doing: calm, searching, or hunting you. */
     private static int colourOf(GuardMode mode) {
         return switch (mode) {
             case HUNT -> Palette.GUARD_HUNT;
