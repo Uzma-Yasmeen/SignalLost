@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    Phase 4: the browser.
+
+    The same rules again, this time compiled to JavaScript by TeaVM. It is the
+    only way the game reaches an iPhone: Apple will not run an APK, but every
+    phone has a browser, and a web app can be added to a home screen where it
+    behaves like an installed one.
+
+        mvn package          -> target/generated/js/signal-lost.js
+
+    Note what is NOT here: no copy of the game. The rules come from the same
+    artifact the desktop and the server use.
+  -->
+
+  <groupId>com.signallost</groupId>
+  <artifactId>signal-lost-web</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+  <name>Signal Lost in the browser</name>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <teavm.version>0.12.0</teavm.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.signallost</groupId>
+      <artifactId>signal-lost</artifactId>
+      <version>0.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.teavm</groupId>
+      <artifactId>teavm-jso-apis</artifactId>
+      <version>${teavm.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.teavm</groupId>
+      <artifactId>teavm-classlib</artifactId>
+      <version>${teavm.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.teavm</groupId>
+        <artifactId>teavm-maven-plugin</artifactId>
+        <version>${teavm.version}</version>
+        <executions>
+          <execution>
+            <id>compile-to-javascript</id>
+            <phase>package</phase>
+            <goals><goal>compile</goal></goals>
+            <configuration>
+              <mainClass>com.signallost.web.WebGame</mainClass>
+              <targetDirectory>${project.build.directory}/generated/js</targetDirectory>
+              <targetFileName>signal-lost.js</targetFileName>
+              <optimizationLevel>ADVANCED</optimizationLevel>
+              <minifying>true</minifying>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
