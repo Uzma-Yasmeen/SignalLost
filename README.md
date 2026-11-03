@@ -2,6 +2,7 @@
 
 **A turn-based stealth game in Java. You escape a facility you can only partly see.**
 
+[![build](https://github.com/Uzma-Yasmeen/SignalLost/actions/workflows/build.yml/badge.svg)](https://github.com/Uzma-Yasmeen/SignalLost/actions/workflows/build.yml)
 ![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
 ![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-230%20passing-success)
