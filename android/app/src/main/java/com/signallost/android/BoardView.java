@@ -1,5 +1,6 @@
 package com.signallost.android;
 
+import com.signallost.art.Critter;
 import com.signallost.guard.Guard;
 import com.signallost.guard.GuardMode;
 import com.signallost.level.Level;
@@ -25,19 +26,20 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
- * The game itself, drawn onto a canvas.
+ * The game, laid out like the desktop: a status bar along the top, the board in
+ * the middle, the controls along the bottom.
  *
- * <p>Laid out sideways: the board takes the width it needs on the left, and a
- * panel down the right holds the status and the controls. In portrait the
- * board was limited by the screen's width and left a third of the phone empty
- * above and below it; turned round, a level fifteen tiles wide and thirteen
- * tall nearly fills the glass.
+ * <p>It had a panel down one side, which fitted the board better — in landscape
+ * the board is limited by height, so taking width costs nothing. It was still
+ * wrong: in landscape your hands are at the left and right edges, so a column
+ * of buttons sits exactly where a thumb already rests and gets pressed by
+ * accident. Top and bottom are the two edges nobody is holding.
  */
 @SuppressLint("ViewConstructor")
 class BoardView extends View {
 
-    /** Width of the side panel, as a fraction of the screen. */
-    private static final float PANEL_FRACTION = 0.22f;
+    private static final float HEADER = 0.115f;
+    private static final float FOOTER = 0.145f;
 
     private static final int UNDO = 0;
     private static final int HINT = 1;
@@ -45,23 +47,25 @@ class BoardView extends View {
     private static final int LEVELS = 3;
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Critter critter;
     private final BiConsumer<String, Score> onFinished;
     private final Runnable onLeave;
+    private final Runnable onNext;
 
     private String levelName;
     private GameState state;
     private int hintTurn = -1;
     private boolean recorded;
-
-    // Where a drag started, so a swipe can move as well as a tap.
     private float pressX;
     private float pressY;
 
-    BoardView(Context context, String levelName,
-              BiConsumer<String, Score> onFinished, Runnable onLeave) {
+    BoardView(Context context, String levelName, Critter critter,
+              BiConsumer<String, Score> onFinished, Runnable onLeave, Runnable onNext) {
         super(context);
+        this.critter = critter;
         this.onFinished = onFinished;
         this.onLeave = onLeave;
+        this.onNext = onNext;
         setBackgroundColor(Palette.BACKDROP);
         load(levelName);
     }
@@ -81,21 +85,27 @@ class BoardView extends View {
 
     // --------------------------------------------------------------- layout
 
-    private float panelLeft() {
-        return getWidth() * (1 - PANEL_FRACTION);
+    private float headerBottom() {
+        return getHeight() * HEADER;
+    }
+
+    private float footerTop() {
+        return getHeight() * (1 - FOOTER);
     }
 
     private int tileSize() {
         GameMap map = state.map();
-        return (int) Math.min(panelLeft() / map.cols(), getHeight() / (float) map.rows());
+        float usableHeight = footerTop() - headerBottom();
+        return (int) Math.min(getWidth() / (float) map.cols(), usableHeight / map.rows());
     }
 
     private float boardLeft() {
-        return (panelLeft() - tileSize() * state.map().cols()) / 2;
+        return (getWidth() - tileSize() * state.map().cols()) / 2f;
     }
 
     private float boardTop() {
-        return (getHeight() - tileSize() * state.map().rows()) / 2f;
+        return headerBottom()
+                + (footerTop() - headerBottom() - tileSize() * state.map().rows()) / 2f;
     }
 
     private RectF tileAt(Position at) {
@@ -123,7 +133,8 @@ class BoardView extends View {
             drawHint(canvas);
         }
         drawPlayer(canvas);
-        drawPanel(canvas);
+        drawHeader(canvas);
+        drawFooter(canvas);
         drawVerdict(canvas);
     }
 
@@ -140,7 +151,7 @@ class BoardView extends View {
         paint.setColor(type == TileType.WALL
                 ? (lit ? Palette.WALL_SEEN : Palette.WALL_REMEMBERED)
                 : (lit ? Palette.FLOOR_SEEN : Palette.FLOOR_REMEMBERED));
-        canvas.drawRoundRect(bounds, tile * 0.14f, tile * 0.14f, paint);
+        canvas.drawRoundRect(bounds, tile * 0.16f, tile * 0.16f, paint);
 
         if (!lit) {
             return;
@@ -158,7 +169,6 @@ class BoardView extends View {
         }
     }
 
-    /** A round bow and a stem, so a key looks like a key rather than a dot. */
     private void drawKey(Canvas canvas, RectF bounds, int tile) {
         float cx = bounds.centerX();
         float cy = bounds.centerY();
@@ -178,7 +188,7 @@ class BoardView extends View {
                     ? Palette.withAlpha(Palette.DANGER, 150) : Palette.WATCHED);
             for (Position watched : guard.watchedTiles(state.map())) {
                 if (state.fog().visibilityOf(watched) == TileVisibility.VISIBLE) {
-                    canvas.drawRoundRect(tileAt(watched), tile * 0.14f, tile * 0.14f, paint);
+                    canvas.drawRoundRect(tileAt(watched), tile * 0.16f, tile * 0.16f, paint);
                 }
             }
         }
@@ -191,12 +201,18 @@ class BoardView extends View {
                 continue;
             }
             RectF bounds = tileAt(guard.position());
-            paint.setColor(colourOf(guard.mode()));
-            float inset = tile * 0.13f;
+            int colour = colourOf(guard.mode());
+            paint.setColor(Palette.withAlpha(colour, 50));
+            canvas.drawCircle(bounds.centerX(), bounds.centerY(), tile * 0.6f, paint);
+            paint.setColor(colour);
+            float inset = tile * 0.14f;
             canvas.drawRoundRect(new RectF(bounds.left + inset, bounds.top + inset,
-                    bounds.right - inset, bounds.bottom - inset), tile * 0.22f, tile * 0.22f, paint);
+                    bounds.right - inset, bounds.bottom - inset), tile * 0.2f, tile * 0.2f, paint);
             paint.setColor(Palette.BACKDROP);
-            canvas.drawCircle(bounds.centerX(), bounds.centerY() - tile * 0.04f, tile * 0.09f, paint);
+            canvas.drawCircle(bounds.centerX() - tile * 0.09f, bounds.centerY() - tile * 0.03f,
+                    tile * 0.06f, paint);
+            canvas.drawCircle(bounds.centerX() + tile * 0.09f, bounds.centerY() - tile * 0.03f,
+                    tile * 0.06f, paint);
         }
     }
 
@@ -216,66 +232,68 @@ class BoardView extends View {
         RectF bounds = tileAt(route.get(0));
         paint.setColor(state.hintSeeksCover() ? Palette.GUARD_ALERT : Palette.HINT);
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(tileSize() * 0.1f);
-        canvas.drawRoundRect(bounds, tileSize() * 0.14f, tileSize() * 0.14f, paint);
+        paint.setStrokeWidth(tileSize() * 0.11f);
+        canvas.drawRoundRect(bounds, tileSize() * 0.16f, tileSize() * 0.16f, paint);
         paint.setStyle(Paint.Style.FILL);
     }
 
     private void drawPlayer(Canvas canvas) {
         int tile = tileSize();
         RectF bounds = tileAt(state.player());
-        float cx = bounds.centerX();
-        float cy = bounds.centerY();
-
-        paint.setColor(Palette.withAlpha(Palette.PLAYER, 40));
-        canvas.drawCircle(cx, cy, tile * 0.6f, paint);
-
-        // A blunt little animal: a round head and two ears, which reads better
-        // at this size than anything more detailed would.
-        paint.setColor(Palette.PLAYER);
-        canvas.drawCircle(cx, cy + tile * 0.04f, tile * 0.28f, paint);
-        Path ears = new Path();
-        ears.moveTo(cx - tile * 0.26f, cy - tile * 0.12f);
-        ears.lineTo(cx - tile * 0.3f, cy - tile * 0.34f);
-        ears.lineTo(cx - tile * 0.06f, cy - tile * 0.22f);
-        ears.close();
-        ears.moveTo(cx + tile * 0.26f, cy - tile * 0.12f);
-        ears.lineTo(cx + tile * 0.3f, cy - tile * 0.34f);
-        ears.lineTo(cx + tile * 0.06f, cy - tile * 0.22f);
-        ears.close();
-        canvas.drawPath(ears, paint);
-
-        paint.setColor(Palette.BACKDROP);
-        canvas.drawCircle(cx - tile * 0.1f, cy, tile * 0.045f, paint);
-        canvas.drawCircle(cx + tile * 0.1f, cy, tile * 0.045f, paint);
+        paint.setColor(Palette.withAlpha(CritterSprite.colourOf(critter), 45));
+        canvas.drawCircle(bounds.centerX(), bounds.centerY(), tile * 0.7f, paint);
+        CritterSprite.paint(canvas, critter, bounds.centerX(), bounds.centerY(), tile * 0.95f);
     }
 
-    // ---------------------------------------------------------------- panel
+    // --------------------------------------------------------- header, footer
 
-    private void drawPanel(Canvas canvas) {
-        float left = panelLeft();
+    private void drawHeader(Canvas canvas) {
+        float bottom = headerBottom();
         paint.setColor(Palette.PANEL);
-        canvas.drawRect(left, 0, getWidth(), getHeight(), paint);
+        canvas.drawRect(0, 0, getWidth(), bottom, paint);
+        paint.setColor(Palette.withAlpha(Palette.ACCENT, 60));
+        canvas.drawRect(0, bottom - 2, getWidth(), bottom, paint);
 
-        float pad = getWidth() * 0.015f;
+        float pad = getWidth() * 0.02f;
+        float baseline = bottom * 0.66f;
+
+        CritterSprite.paint(canvas, critter, pad + bottom * 0.3f, bottom * 0.5f, bottom * 0.62f);
+
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
-        paint.setTextSize(getHeight() * 0.075f);
-        canvas.drawText(prettyLevel(), left + pad, getHeight() * 0.1f, paint);
+        paint.setTextSize(bottom * 0.42f);
+        canvas.drawText(prettyLevel(), pad + bottom * 0.7f, baseline, paint);
         paint.setFakeBoldText(false);
 
-        String[] rows = {
-            "keys    " + state.keysHeld() + " / " + state.keysRequired(),
-            "lives   " + state.livesLeft(),
-            "hints   " + state.hintsLeft(),
-            "seen    " + state.sightings(),
-            state.hasTurnLimit() ? "turns   " + state.turnsRemaining() : "turns   " + state.turnsTaken(),
-        };
-        paint.setTextSize(getHeight() * 0.05f);
-        for (int i = 0; i < rows.length; i++) {
-            paint.setColor(i == 3 && state.sightings() > 0 ? Palette.DANGER : Palette.TEXT_DIM);
-            canvas.drawText(rows[i], left + pad, getHeight() * (0.2f + i * 0.072f), paint);
-        }
+        // The numbers run right to left from the far edge, so the level name
+        // on the left never collides with them however long it gets.
+        float x = getWidth() - pad;
+        x = chip(canvas, x, "TURNS " + (state.hasTurnLimit()
+                ? state.turnsRemaining() : state.turnsTaken()), Palette.TEXT_DIM, baseline);
+        x = chip(canvas, x, "SEEN " + state.sightings(),
+                state.sightings() > 0 ? Palette.DANGER : Palette.TEXT_DIM, baseline);
+        x = chip(canvas, x, "HINTS " + state.hintsLeft(), Palette.TEXT_DIM, baseline);
+        x = chip(canvas, x, "LIVES " + state.livesLeft(),
+                state.livesLeft() <= 1 ? Palette.DANGER : Palette.TEXT_DIM, baseline);
+        chip(canvas, x, "KEYS " + state.keysHeld() + "/" + state.keysRequired(),
+                state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY, baseline);
+    }
+
+    /** One right-aligned label; returns the left edge for the next one along. */
+    private float chip(Canvas canvas, float rightEdge, String label, int colour, float baseline) {
+        paint.setTextSize(headerBottom() * 0.3f);
+        paint.setColor(colour);
+        float width = paint.measureText(label);
+        canvas.drawText(label, rightEdge - width, baseline, paint);
+        return rightEdge - width - getWidth() * 0.022f;
+    }
+
+    private void drawFooter(Canvas canvas) {
+        float top = footerTop();
+        paint.setColor(Palette.PANEL);
+        canvas.drawRect(0, top, getWidth(), getHeight(), paint);
+        paint.setColor(Palette.withAlpha(Palette.ACCENT, 60));
+        canvas.drawRect(0, top, getWidth(), top + 2, paint);
 
         String[] labels = {"UNDO", "HINT  " + state.hintsLeft(), "RESTART", "LEVELS"};
         for (int i = 0; i < labels.length; i++) {
@@ -286,85 +304,148 @@ class BoardView extends View {
                 default -> true;
             };
             paint.setColor(Palette.BUTTON);
-            canvas.drawRoundRect(button, button.height() * 0.3f, button.height() * 0.3f, paint);
+            canvas.drawRoundRect(button, button.height() * 0.32f, button.height() * 0.32f, paint);
             paint.setColor(usable ? Palette.TEXT : Palette.LOCKED);
-            paint.setTextSize(button.height() * 0.4f);
+            paint.setTextSize(button.height() * 0.38f);
             paint.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText(labels[i], button.centerX(), button.centerY() + button.height() * 0.14f,
-                    paint);
+            canvas.drawText(labels[i], button.centerX(),
+                    button.centerY() + button.height() * 0.14f, paint);
             paint.setTextAlign(Paint.Align.LEFT);
         }
     }
 
-    /**
-     * The four buttons, stacked and guaranteed to fit.
-     *
-     * <p>Sized from the space actually left rather than from fractions chosen
-     * by eye: the first version put the last button eleven pixels past the
-     * bottom of the screen, so tapping LEVELS restarted the level instead.
-     */
     private RectF buttonAt(int index) {
-        float pad = getWidth() * 0.015f;
-        float left = panelLeft() + pad;
-        float right = getWidth() - pad;
-
-        float top = getHeight() * 0.55f;
-        float bottom = getHeight() - pad;
-        float gap = getHeight() * 0.018f;
-        float height = (bottom - top - gap * 3) / 4;
-
-        float buttonTop = top + index * (height + gap);
-        return new RectF(left, buttonTop, right, buttonTop + height);
+        float pad = getWidth() * 0.02f;
+        float gap = getWidth() * 0.012f;
+        float width = (getWidth() - pad * 2 - gap * 3) / 4;
+        float top = footerTop() + getHeight() * 0.025f;
+        float bottom = getHeight() - getHeight() * 0.025f;
+        float left = pad + index * (width + gap);
+        return new RectF(left, top, left + width, bottom);
     }
 
     private String prettyLevel() {
         return levelName.replaceAll("(?<=\\D)(?=\\d)", " ").toUpperCase();
     }
 
+    // -------------------------------------------------------------- verdict
+
+    private boolean verdictShowing() {
+        return state.hasEscaped() || state.isRunOver() || state.hasFailed();
+    }
+
+    private RectF verdictButton(boolean left) {
+        RectF banner = verdictBanner();
+        float width = banner.width() * 0.38f;
+        float height = banner.height() * 0.26f;
+        float y = banner.bottom - height - banner.height() * 0.09f;
+        float x = left ? banner.centerX() - width - banner.width() * 0.02f
+                : banner.centerX() + banner.width() * 0.02f;
+        return new RectF(x, y, x + width, y + height);
+    }
+
+    private RectF verdictBanner() {
+        float width = Math.min(getWidth() * 0.5f, 1100);
+        float height = getHeight() * 0.56f;
+        return new RectF((getWidth() - width) / 2, (getHeight() - height) / 2,
+                (getWidth() + width) / 2, (getHeight() + height) / 2);
+    }
+
     private void drawVerdict(Canvas canvas) {
-        String headline = null;
-        String detail = null;
-        if (state.hasEscaped()) {
-            Score score = state.score();
-            headline = "ESCAPED";
-            detail = score.stars() + " of 3 stars   ·   " + score.turns()
-                    + " turns, par " + score.par() + "   ·   seen " + score.sightings();
-        } else if (state.isRunOver()) {
-            headline = "RUN OVER";
-            detail = "no lives left   ·   tap RESTART";
-        } else if (state.isCaught()) {
-            headline = "CAUGHT";
-            detail = state.livesLeft() + " lives left   ·   tap the board to carry on";
-        } else if (state.hasFailed()) {
-            headline = "OUT OF TURNS";
-            detail = "tap RESTART";
+        if (!verdictShowing() && !state.isCaught()) {
+            return;
         }
-        if (headline == null) {
+        if (state.isCaught() && !state.isRunOver()) {
+            // A lost life is a nudge, not a full stop.
+            paint.setColor(Palette.withAlpha(Palette.DANGER, 220));
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTextSize(getHeight() * 0.05f);
+            canvas.drawText("CAUGHT  ·  " + state.livesLeft() + " lives left  ·  tap to carry on",
+                    getWidth() / 2f, headerBottom() + getHeight() * 0.08f, paint);
+            paint.setTextAlign(Paint.Align.LEFT);
             return;
         }
 
-        float midX = panelLeft() / 2;
-        float midY = getHeight() / 2f;
-        RectF banner = new RectF(midX - panelLeft() * 0.42f, midY - getHeight() * 0.14f,
-                midX + panelLeft() * 0.42f, midY + getHeight() * 0.13f);
-        paint.setColor(Palette.withAlpha(Palette.BACKDROP, 238));
-        canvas.drawRoundRect(banner, 28, 28, paint);
+        RectF banner = verdictBanner();
+        paint.setColor(Palette.withAlpha(Palette.BACKDROP, 243));
+        canvas.drawRoundRect(banner, 30, 30, paint);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(3);
         paint.setColor(state.hasEscaped() ? Palette.EXIT_OPEN : Palette.DANGER);
-        canvas.drawRoundRect(banner, 28, 28, paint);
+        canvas.drawRoundRect(banner, 30, 30, paint);
         paint.setStyle(Paint.Style.FILL);
 
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setColor(state.hasEscaped() ? Palette.EXIT_OPEN : Palette.DANGER);
         paint.setFakeBoldText(true);
-        paint.setTextSize(getHeight() * 0.1f);
-        canvas.drawText(headline, midX, midY, paint);
+        paint.setTextSize(banner.height() * 0.19f);
+        canvas.drawText(state.hasEscaped() ? "ESCAPED" : (state.isRunOver() ? "RUN OVER"
+                : "OUT OF TURNS"), banner.centerX(), banner.top + banner.height() * 0.26f, paint);
         paint.setFakeBoldText(false);
-        paint.setColor(Palette.TEXT_DIM);
-        paint.setTextSize(getHeight() * 0.045f);
-        canvas.drawText(detail, midX, midY + getHeight() * 0.08f, paint);
+
+        if (state.hasEscaped()) {
+            Score score = state.score();
+            drawStars(canvas, banner, score.stars());
+            paint.setColor(Palette.TEXT_DIM);
+            paint.setTextSize(banner.height() * 0.082f);
+            canvas.drawText(score.turns() + " turns, par " + score.par()
+                            + "   ·   seen " + score.sightings(),
+                    banner.centerX(), banner.top + banner.height() * 0.58f, paint);
+        } else {
+            paint.setColor(Palette.TEXT_DIM);
+            paint.setTextSize(banner.height() * 0.082f);
+            canvas.drawText("better luck next time",
+                    banner.centerX(), banner.top + banner.height() * 0.45f, paint);
+        }
+
+        drawVerdictButton(canvas, verdictButton(true), "LEVELS", Palette.BUTTON);
+        drawVerdictButton(canvas, verdictButton(false),
+                state.hasEscaped() ? "CONTINUE" : "RETRY",
+                state.hasEscaped() ? Palette.EXIT_OPEN : Palette.DANGER);
         paint.setTextAlign(Paint.Align.LEFT);
+    }
+
+    private void drawVerdictButton(Canvas canvas, RectF button, String label, int edge) {
+        paint.setColor(Palette.BUTTON);
+        canvas.drawRoundRect(button, button.height() * 0.3f, button.height() * 0.3f, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(3);
+        paint.setColor(edge);
+        canvas.drawRoundRect(button, button.height() * 0.3f, button.height() * 0.3f, paint);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(Palette.TEXT);
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextSize(button.height() * 0.36f);
+        paint.setFakeBoldText(true);
+        canvas.drawText(label, button.centerX(), button.centerY() + button.height() * 0.13f, paint);
+        paint.setFakeBoldText(false);
+    }
+
+    private void drawStars(Canvas canvas, RectF banner, int earned) {
+        float size = banner.height() * 0.1f;
+        float gap = size * 0.9f;
+        float y = banner.top + banner.height() * 0.42f;
+        for (int i = 0; i < 3; i++) {
+            paint.setColor(i < earned ? Palette.KEY : Palette.LOCKED);
+            drawStar(canvas, banner.centerX() + (i - 1) * (size * 2 + gap), y, size);
+        }
+    }
+
+    private void drawStar(Canvas canvas, float cx, float cy, float radius) {
+        Path star = new Path();
+        for (int point = 0; point < 10; point++) {
+            double angle = Math.PI / 5 * point - Math.PI / 2;
+            float length = (point % 2 == 0) ? radius : radius * 0.45f;
+            float x = cx + (float) (Math.cos(angle) * length);
+            float y = cy + (float) (Math.sin(angle) * length);
+            if (point == 0) {
+                star.moveTo(x, y);
+            } else {
+                star.lineTo(x, y);
+            }
+        }
+        star.close();
+        canvas.drawPath(star, paint);
     }
 
     // ---------------------------------------------------------------- touch
@@ -392,7 +473,19 @@ class BoardView extends View {
     }
 
     private void handleRelease(float x, float y) {
-        if (pressX >= panelLeft()) {
+        if (verdictShowing()) {
+            if (verdictButton(true).contains(x, y)) {
+                onLeave.run();
+            } else if (verdictButton(false).contains(x, y)) {
+                if (state.hasEscaped()) {
+                    onNext.run();
+                } else {
+                    load(levelName);
+                }
+            }
+            return;
+        }
+        if (pressY >= footerTop()) {
             for (int i = 0; i < 4; i++) {
                 if (buttonAt(i).contains(x, y)) {
                     press(i);
@@ -401,15 +494,13 @@ class BoardView extends View {
             }
             return;
         }
-        reportIfFinished();
+        if (pressY < headerBottom()) {
+            return;
+        }
 
         float draggedX = x - pressX;
         float draggedY = y - pressY;
         float swipe = tileSize() * 0.6f;
-
-        // A swipe says the direction outright. A tap means "go towards there",
-        // which keeps working anywhere on the board rather than only on the
-        // tile next to you.
         if (Math.abs(draggedX) > swipe || Math.abs(draggedY) > swipe) {
             step(Math.abs(draggedX) > Math.abs(draggedY)
                     ? (draggedX < 0 ? Direction.LEFT : Direction.RIGHT)
@@ -463,7 +554,6 @@ class BoardView extends View {
         reportIfFinished();
     }
 
-    /** Hands a finished level to whoever is keeping score, exactly once. */
     private void reportIfFinished() {
         if (!recorded && state.hasEscaped()) {
             recorded = true;

@@ -22,6 +22,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * also why this game could be put on a phone by writing a new front end rather
  * than a new game: Android has no Swing, but it has all of {@code java.util}.
  *
+ * <p>{@code art} is in the list for the same reason the rest are. The pixel
+ * grids used to live in the Swing package holding {@code java.awt.Color}, which
+ * meant a phone could not have the same characters without either dragging AWT
+ * along or drawing a second set that would drift away from the first. They are
+ * data now, and this keeps them that way.
+ *
  * <p>That property is worth one line of {@code import} away from being lost
  * forever, and nothing else would notice. A model class that reaches for
  * {@code java.awt.Color} because it is a convenient way to hold a colour
@@ -32,13 +38,13 @@ class ArchitectureTest {
 
     /** Packages that hold rules, and must stay independent of how they are drawn. */
     private static final String[] LOGIC_PACKAGES = {
-        "model", "vision", "pathfinding", "guard", "level", "progress"
+        "model", "vision", "pathfinding", "guard", "level", "progress", "art"
     };
 
     private static final String[] FORBIDDEN = {"java.awt", "javax.swing", "java.applet"};
 
     @ParameterizedTest(name = "{0} stays free of the user interface")
-    @ValueSource(strings = {"model", "vision", "pathfinding", "guard", "level", "progress"})
+    @ValueSource(strings = {"model", "vision", "pathfinding", "guard", "level", "progress", "art"})
     void logicDoesNotDependOnSwing(String packageName) {
         Path folder = Path.of("src", "main", "java", "com", "signallost", packageName);
         assertTrue(Files.isDirectory(folder), "cannot find " + folder);

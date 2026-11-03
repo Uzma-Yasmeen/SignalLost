@@ -1,5 +1,7 @@
 package com.signallost.android;
 
+import com.signallost.art.Critter;
+import com.signallost.level.LevelCatalog;
 import com.signallost.model.Score;
 import com.signallost.progress.PlayerProfile;
 import com.signallost.progress.ProgressStore;
@@ -10,23 +12,25 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 
+import java.util.List;
+
 /**
  * The only activity: it swaps one screen for another and keeps the save file.
  *
- * <p>The flow is the desktop game's, minus the character roster: title, name,
- * level select, the level. Each screen is a view that draws itself, so there is
- * no layout XML anywhere in this project.
+ * <p>The flow is the desktop game's — title, name, character, level select, the
+ * level — and each screen is a view that draws itself, so there is no layout
+ * XML anywhere in this project.
  *
  * <p>Everything that decides anything lives in classes shared with the desktop
- * build, {@link ProgressStore} included. The one platform difference is the
- * line below that hands it a directory, which is the single concession the
- * rules layer makes to running on a phone.
+ * build, {@link ProgressStore} and the characters included. The one platform
+ * difference is the line below that hands the store a directory.
  */
 public class GameActivity extends Activity {
 
     private FrameLayout root;
     private ProgressStore store;
     private PlayerProfile profile;
+    private Critter critter = Critter.defaultChoice();
     private BoardView board;
 
     @Override
@@ -40,9 +44,8 @@ public class GameActivity extends Activity {
         store = new ProgressStore(getFilesDir().toPath().resolve("progress.properties"));
 
         // load() returns null when nobody has played here before, which on a
-        // phone is the first launch of every install. Worth stating plainly
-        // because it is not obvious from the call: this is the empty case, not
-        // an error.
+        // phone is the first launch of every install. This is the empty case,
+        // not an error.
         profile = store.load();
 
         root = new FrameLayout(this);
@@ -68,6 +71,14 @@ public class GameActivity extends Activity {
     private void showNameEntry() {
         show(new NameView(this, profile == null ? null : profile.name(), chosen -> {
             profile = store.loadFor(chosen);
+            showCharacterSelect();
+        }));
+    }
+
+    private void showCharacterSelect() {
+        board = null;
+        show(new CharacterSelectView(this, critter, picked -> {
+            critter = picked;
             showLevelSelect();
         }));
     }
@@ -78,8 +89,31 @@ public class GameActivity extends Activity {
     }
 
     private void startLevel(String levelName) {
-        board = new BoardView(this, levelName, this::recordResult, this::showLevelSelect);
+        board = new BoardView(this, levelName, critter, this::recordResult,
+                this::showLevelSelect, () -> showNextAfter(levelName));
         show(board);
+    }
+
+    /**
+     * Straight on to the next level, if the stars just earned have unlocked it.
+     *
+     * <p>Sending a player back to the grid after every win is a tap they never
+     * wanted; sending them to a level they have not unlocked is worse. If the
+     * next one is not open yet, the grid is the honest answer.
+     */
+    private void showNextAfter(String levelName) {
+        List<LevelCatalog.Entry> levels = LevelCatalog.load();
+        for (int i = 0; i < levels.size() - 1; i++) {
+            if (levels.get(i).name().equals(levelName)) {
+                LevelCatalog.Entry next = levels.get(i + 1);
+                if (profile.totalStars() >= next.starsToUnlock()) {
+                    startLevel(next.name());
+                    return;
+                }
+                break;
+            }
+        }
+        showLevelSelect();
     }
 
     /** Keeps the better of what was just done and what was already there. */

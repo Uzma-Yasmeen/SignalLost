@@ -1,5 +1,6 @@
 package com.signallost.ui;
 
+import com.signallost.art.Critter;
 import javax.swing.JPanel;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -211,7 +212,7 @@ public final class CharacterSelectPanel extends JPanel {
 
         if (isSelected) {
             // A wash of the animal's own colour behind the selected card.
-            g.setColor(Palette.withAlpha(critter.fur(), 38));
+            g.setColor(Palette.withAlpha(new Color(critter.fur()), 38));
             g.fill(new RoundRectangle2D.Double(
                     bounds.x - 5, bounds.y - 5, bounds.width + 10, bounds.height + 10, 22, 22));
         }
@@ -220,7 +221,7 @@ public final class CharacterSelectPanel extends JPanel {
         g.fill(card);
 
         g.setColor(isSelected
-                ? critter.fur()
+                ? new Color(critter.fur())
                 : Palette.withAlpha(Palette.TEXT, isHovered ? 70 : 26));
         g.setStroke(new java.awt.BasicStroke(isSelected ? 2.2f : 1.2f));
         g.draw(card);
@@ -228,7 +229,7 @@ public final class CharacterSelectPanel extends JPanel {
         double headY = bounds.y + bounds.height * 0.42;
         double headRadius = 38;
         if (isSelected) {
-            paintSoftGlow(g, bounds.getCenterX(), headY, headRadius * 2.4, critter.fur(), 60);
+            paintSoftGlow(g, bounds.getCenterX(), headY, headRadius * 2.4, new Color(critter.fur()), 60);
         }
         CritterArt.paint(g, critter, bounds.getCenterX(), headY, headRadius);
 

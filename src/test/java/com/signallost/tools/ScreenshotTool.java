@@ -15,7 +15,7 @@ import com.signallost.ui.CharacterSelectPanel;
 import com.signallost.ui.LevelSelectPanel;
 import com.signallost.ui.NamePanel;
 import com.signallost.ui.TitlePanel;
-import com.signallost.ui.Critter;
+import com.signallost.art.Critter;
 import com.signallost.ui.FooterBar;
 import com.signallost.ui.GamePanel;
 import com.signallost.ui.HudBar;

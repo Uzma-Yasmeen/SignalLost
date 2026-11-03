@@ -1,6 +1,6 @@
 package com.signallost;
 
-import com.signallost.ui.Critter;
+import com.signallost.art.Critter;
 import com.signallost.ui.CritterArt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

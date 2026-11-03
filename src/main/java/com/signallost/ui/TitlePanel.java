@@ -1,5 +1,6 @@
 package com.signallost.ui;
 
+import com.signallost.art.Critter;
 import com.signallost.model.Score;
 import com.signallost.progress.PlayerProfile;
 

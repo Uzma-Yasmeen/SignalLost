@@ -1,5 +1,6 @@
 package com.signallost.ui;
 
+import com.signallost.art.Critter;
 import com.signallost.level.Level;
 import com.signallost.level.LevelCatalog;
 import com.signallost.level.LevelLoader;

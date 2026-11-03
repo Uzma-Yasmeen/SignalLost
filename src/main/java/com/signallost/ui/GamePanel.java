@@ -1,5 +1,6 @@
 package com.signallost.ui;
 
+import com.signallost.art.Critter;
 import com.signallost.guard.Guard;
 import com.signallost.guard.GuardMode;
 import com.signallost.model.GameMap;
@@ -458,7 +459,7 @@ public final class GamePanel extends JPanel {
         }
         Rectangle2D bounds = tileBounds(state.player());
         paintGlow(g, bounds.getCenterX(), bounds.getCenterY(),
-                tile * (state.fog().sightRadius() + 1.2), critter.glow(), 42);
+                tile * (state.fog().sightRadius() + 1.2), new Color(critter.glow()), 42);
     }
 
     /**
@@ -470,7 +471,7 @@ public final class GamePanel extends JPanel {
         double cx = bounds.getCenterX();
         double cy = bounds.getCenterY() + tile * 0.07;
 
-        paintGlow(g, cx, cy, tile * 1.6, critter.glow(), 130);
+        paintGlow(g, cx, cy, tile * 1.6, new Color(critter.glow()), 130);
 
         CritterArt.paint(g, critter, cx, cy, tile * 0.3, animationFrame);
     }

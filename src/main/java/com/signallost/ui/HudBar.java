@@ -1,5 +1,6 @@
 package com.signallost.ui;
 
+import com.signallost.art.Critter;
 import com.signallost.guard.GuardMode;
 import com.signallost.model.GameState;
 
