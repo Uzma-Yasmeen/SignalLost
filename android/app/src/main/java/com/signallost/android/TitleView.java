@@ -87,27 +87,22 @@ class TitleView extends View {
         paint.setFakeBoldText(false);
     }
 
-    private RectF startButton() {
-        float width = Math.min(getWidth() * 0.34f, 520);
-        float height = getHeight() * 0.125f;
-        float top = getHeight() * 0.7f;
-        return new RectF((getWidth() - width) / 2, top, (getWidth() + width) / 2, top + height);
+    /** START and QUIT sit side by side, the same size as each other. */
+    private RectF buttonAt(int index) {
+        float width = Math.min(getWidth() * 0.26f, 420);
+        float height = getHeight() * 0.13f;
+        float gap = getWidth() * 0.025f;
+        float left = getWidth() / 2f - width - gap / 2 + index * (width + gap);
+        float top = getHeight() * 0.74f;
+        return new RectF(left, top, left + width, top + height);
     }
 
-    /**
-     * A way out of the game, from the screen a player comes back to.
-     *
-     * <p>Android's own gesture closes an app, but a game that only offers the
-     * system's way out is a game that never says goodbye. It sits under START,
-     * smaller and in a quieter colour, so it is findable without competing.
-     */
+    private RectF startButton() {
+        return buttonAt(0);
+    }
+
     private RectF quitButton() {
-        RectF start = startButton();
-        float width = start.width() * 0.56f;
-        float height = start.height() * 0.78f;
-        float top = start.bottom + getHeight() * 0.035f;
-        return new RectF(getWidth() / 2f - width / 2, top, getWidth() / 2f + width / 2,
-                top + height);
+        return buttonAt(1);
     }
 
     @Override
