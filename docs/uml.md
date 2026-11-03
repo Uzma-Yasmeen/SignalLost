@@ -686,3 +686,62 @@ stateDiagram-v2
         alarm but cannot answer one.
     end note
 ```
+
+---
+
+## 5.7 Deployment view: one set of rules, three consumers
+
+The architecture's point, drawn. The six rule packages are compiled once and
+used by three programs that share no other code: the desktop game, a server
+that replays submitted runs to score them, and an Android app. None of the
+three has a copy of the rules, and nothing in the rules knows that any of them
+exist.
+
+```mermaid
+flowchart TB
+    subgraph RULES["com.signallost — model · vision · guard · pathfinding · level · progress"]
+        CORE["2,951 lines<br/>No java.awt. No javax.swing.<br/><i>enforced by ArchitectureTest</i>"]
+    end
+
+    subgraph DESKTOP["Desktop game — Java + Swing"]
+        SWING["GameFrame · GamePanel<br/>pixel sprites"]
+        SAVE[("~/.signal-lost<br/>progress.properties")]
+    end
+
+    subgraph SERVER["Leaderboard — Spring Boot"]
+        API["REST API<br/>POST /api/runs"]
+        VERIFY["RunVerifier<br/><i>replays the moves<br/>and scores them here</i>"]
+        DB[("PostgreSQL<br/>player · run")]
+    end
+
+    subgraph PHONE["Android app"]
+        VIEW["GameActivity · BoardView<br/>Canvas and touch"]
+        FILES[("getFilesDir()")]
+    end
+
+    CORE --> SWING
+    CORE --> VERIFY
+    CORE --> VIEW
+
+    SWING --> SAVE
+    VIEW --> FILES
+    API --> VERIFY
+    VERIFY --> DB
+
+    SWING -. "submits moves" .-> API
+    VIEW -. "submits moves" .-> API
+
+    style RULES fill:#ecfdf5,stroke:#059669
+    style DESKTOP fill:#eef2ff,stroke:#4f46e5
+    style SERVER fill:#fef3c7,stroke:#d97706
+    style PHONE fill:#fae8ff,stroke:#a21caf
+```
+
+> **Why the server needs the rules at all.** A leaderboard that accepts a score
+> has to believe whatever the client sends it, and the client runs on the
+> player's machine. This one accepts the moves instead and replays them, which
+> it can only do because the rules run without a screen and because the same
+> moves always produce the same result. The anti-cheat property is a
+> consequence of two decisions made long before there was a server.
+
+---

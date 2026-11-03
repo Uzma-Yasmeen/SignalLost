@@ -87,7 +87,7 @@ mvn -q test
 
 ## Under the hood
 
-**The rules know nothing about the screen.** All 2,940 lines of game logic — the
+**The rules know nothing about the screen.** All 2,951 lines of game logic — the
 fog, the pathfinding, the guards, the undo stack, the scoring — contain no
 reference to Swing or AWT, and
 [a test](src/test/java/com/signallost/ArchitectureTest.java) fails the build if

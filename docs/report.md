@@ -37,7 +37,8 @@ guards and levels.
 The completed system has ten levels, six playable characters, three lives per
 run, a limited hint system, a star rating based on turns taken and times seen,
 and saved progress for each player. It is verified by 230 automated tests in 26
-test classes. These include an architectural test that fails the build if the
+test classes, with a further 18 covering the leaderboard service described in
+Section 7.7. These include an architectural test that fails the build if the
 game rules ever refer to the user interface, and a fairness test that checks
 every level can be completed. Level difficulty was calibrated using an
 exhaustive breadth-first search of the game tree, which confirmed that a winning
@@ -100,9 +101,14 @@ per run, a limited hint system, a star rating, ten levels with star-based
 unlocking, saved progress for each player, a Swing user interface, and an
 automated test suite.
 
-The system does not use a network, does not store data remotely, and has no
-account system, multiplayer or sound. A Spring Boot and PostgreSQL leaderboard
-is planned as a second phase and is not implemented.
+The desktop game uses no network and stores nothing remotely, and there is no
+account system, multiplayer or sound.
+
+A second phase has since been built: a Spring Boot and PostgreSQL leaderboard
+that scores submitted runs by replaying them, described in Section 7.7. A third
+produces an Android build from the same rules, described in Section 7.8. The
+Android app compiles and packages but has not yet been run on a device, which
+is recorded in Section 8.3.
 
 All three guard types described in the original proposal are implemented: a
 patroller that walks a route, a hunter that pursues with A*, and a stationary
@@ -421,6 +427,21 @@ which made the level unwinnable.
 
 ---
 
+### 5.7 Deployment View
+
+![One set of rules, three consumers](diagrams/5.7-deployment-view-one-set-of-rules-three-consumers.png)
+
+The six rule packages are compiled once and used by three programs that share
+no other code: the desktop game, a server that scores submitted runs, and an
+Android app. None of the three holds a copy of the rules, and nothing in the
+rules knows that any of them exist.
+
+This is the architecture of Section 5.1 taken to its conclusion. The dependency
+rule was stated there as a constraint and enforced by a test; here it is what
+makes two further programs possible without touching the first.
+
+---
+
 ## 6. Methodology
 
 ### 6.1 Development approach
@@ -501,13 +522,21 @@ more trustworthy than the software it checks until it has itself been checked.
 
 | Package | Lines | Responsibility |
 | --- | --- | --- |
-| `model` | 1,148 | Game state, map, commands, undo stack, scoring |
-| `guard` | 612 | Guard types, modes, behaviours, the alarm |
+| `model` | 1,171 | Game state, map, commands, undo stack, scoring |
+| `guard` | 836 | Guard types, modes, behaviours, the alarm |
 | `progress` | 284 | Player profiles and saved progress |
 | `level` | 258 | Level and catalogue loading from text |
 | `pathfinding` | 213 | A* search and route metrics |
 | `vision` | 189 | Visibility and fog memory |
-| **Total** | **2,704** | **No user-interface dependency** |
+| **Rules total** | **2,951** | **No user-interface dependency** |
+
+The three front ends built on those rules, none of which the rules know about:
+
+| Module | Lines | Responsibility |
+| --- | --- | --- |
+| `ui` | 3,263 | Swing front end for the desktop |
+| `server` | 762 | Spring Boot leaderboard (Section 7.7) |
+| `android` | 377 | Android front end (Section 7.8) |
 
 ### 7.2 Fog of war
 
@@ -607,14 +636,124 @@ check guard behaviour against expectation.
 
 ---
 
+### 7.7 The leaderboard service
+
+A Spring Boot and PostgreSQL service that records completed runs and serves a
+leaderboard. It is 762 lines across 15 files, and it depends on the game.
+
+**The problem it solves.** A leaderboard that accepts a score has to believe
+whatever the client sends, and the client runs on the player's machine. A
+request saying `{"stars": 3}` is a claim, not a fact. The usual defences —
+obfuscating the client, embedding a signing key, checking a score for
+plausibility — make forgery inconvenient rather than impossible, because the
+number still originates somewhere the player controls.
+
+**What it does instead.** The service accepts no score. A submission carries the
+player's name, the level, and the sequence of moves they made, one letter per
+turn:
+
+```json
+{"playerName": "Uzma", "levelName": "level1",
+ "moves": "DUDUDUDUDDDDDDDDRRRRUUUURRRRUUUURRRRDDDDDDDD"}
+```
+
+The server loads that level, replays those moves through the same `GameState`
+the game uses, and computes the result itself:
+
+```json
+{"id": 1, "playerName": "Uzma", "levelName": "level1",
+ "stars": 2, "turns": 44, "par": 69, "sightings": 33}
+```
+
+Every number in the response was produced on the server. Claiming three stars
+requires submitting a sequence of moves that earns three stars, which is to say
+playing the level. A shorter sequence that does not reach the exit is refused:
+
+```json
+{"error": "run rejected",
+ "reason": "The run ends without reaching the exit after 4 moves"}
+```
+
+**Why it is possible here and not generally.** Two properties of the game, both
+enforced by tests in its own build. The rules carry no user interface (NFR-2),
+so they can run inside a web request. And the game is deterministic (NFR-4), so
+replaying the same moves from the same start reaches the same end — without
+that, a legitimate run would verify differently on the server than it played on
+the client. Neither property was added for this purpose; the service is what
+they turned out to be worth.
+
+**The schema.** Two tables, and the decision worth defending is in the second:
+every run is stored, not only a player's best. Keeping a best-score column means
+keeping it correct on every write and discarding the history. "Best" is a
+question to ask the data, so the leaderboard is a query — a window function that
+numbers each player's runs from their best and keeps the first. Written as
+native SQL, since window functions are not JPQL, and the same statement runs on
+both PostgreSQL and the in-memory database the tests use.
+
+| Table | Columns |
+| --- | --- |
+| `player` | id, display_name (unique), first_seen |
+| `run` | id, player_id, level_name, **moves**, stars, turns, par, sightings, submitted_at |
+
+`moves` is kept because it is the only part the client authored, and because a
+stored run can be re-verified later or replayed for a spectator.
+
+**Endpoints.** `POST /api/runs` to submit, `GET /api/leaderboard/{level}` for
+each player's best, `GET /api/players/{name}/runs` for a history, and
+`GET /api/levels`, which reads the game's own catalogue so the server and the
+game cannot disagree about what exists. A malformed request is 400; a run that
+is well formed but not a winning run is 422.
+
+**Verification.** 18 tests. The verifier is tested from both ends — that a
+genuine run is accepted and scored exactly as the game scores it, and that
+short, malformed, over-long and impossible submissions are refused. The API
+tests run over real HTTP against a real database, including that a refused run
+leaves nothing behind, not even a player row. The tests find a winning run by
+searching for one rather than hard-coding a sequence, which would stop being
+valid the first time a level was redrawn.
+
+### 7.8 The Android build
+
+A second interface onto the same game, 377 lines in two classes.
+
+The Gradle module does not copy anything. Its source set points at the existing
+`src/main/java`, excludes the `ui` package, and compiles:
+
+```groovy
+srcDirs = ['src/main/java', '../../src/main/java']
+exclude 'com/signallost/ui/**'
+```
+
+The resulting 56 KB APK contains 35 rules classes across all six packages, all
+ten level files, three Android classes, and **no user-interface class from the
+desktop build**. Not one line of the rules was changed to produce it.
+
+`GameActivity` and `BoardView` are the whole front end. There is no layout XML,
+no AndroidX and no third-party dependency: the board is drawn onto a `Canvas`,
+much as the desktop version draws onto a `Graphics2D`. Tapping anywhere on the
+board steps one tile in that direction, which keeps the turn-based feel without
+asking a thumb to hit a 40-pixel square; three strips along the bottom give
+undo, hint and restart, and the hardware back button undoes.
+
+The only platform-specific concession in the rules layer is the one anticipated
+in the design: `ProgressStore` takes its path from the caller, so Android
+supplies `getFilesDir()` where the desktop supplies the home directory.
+
+---
+
 ## 8. Conclusion
 
 ### 8.1 Summary
 
 Signal Lost was delivered as a complete, playable turn-based stealth game in
 Java, with ten levels, six characters, three guard types, exact undo, a limited
-hint system, star-based scoring and saved progress. The rules are 2,940 lines
-across six packages and are verified by 230 automated tests in 26 test classes.
+hint system, star-based scoring and saved progress. The rules are 2,951 lines
+across six packages and are verified by 230 automated tests in 26 test classes,
+with 18 more covering the leaderboard service: 248 in all.
+
+A leaderboard service and an Android build were added afterwards, both reusing
+the rules without modification, so the same compiled logic now runs in three
+programs: a desktop game, a server, and a phone.
 
 All seven objectives in Section 2.2 were met. Fog of war is a bounded
 breadth-first flood fill, pursuit uses A* with a Manhattan heuristic and a
@@ -644,6 +783,9 @@ wrong twice, each time reporting winnable levels as unwinnable.
   in level 5, its six-tile cone covered fifteen of the sixteen walkable tiles in
   that room across one sweep, leaving nowhere to wait while it turned. The guard
   type is sound; the levels were not built for it.
+- The Android build has not been run. It compiles, packages and contains the
+  expected classes and levels, but no device or emulator was available to launch
+  it on, so nothing is claimed about how it behaves.
 - No performance budget is measured; NFR-1 is claimed rather than verified.
 - Nothing in the game teaches its rules. A new player learns that red tiles are
   watched, and that only hunters capture, by being caught.
@@ -657,8 +799,9 @@ wrong twice, each time reporting winnable levels as unwinnable.
 | Term | Work |
 | --- | --- |
 | Near | An in-game tutorial; a colour-blind-safe line-of-sight overlay |
-| Phase 2 | The Spring Boot and PostgreSQL leaderboard with daily levels. `Score` and `LevelResult` are already plain data records for this purpose |
-| Longer | An Android release. Because the rules import no user-interface type, this needs a new interface layer rather than a new game; the only rules-layer change identified is giving `ProgressStore` a platform-appropriate path |
+| Phase 2 | Built, Section 7.7. Still to do: deploy it, and add the daily level |
+| Phase 3 | Built, Section 7.8. Still to do: run it on a device, port the pixel sprites, and add the level select |
+| Longer | Have both clients submit their runs to the leaderboard, which needs only the move sequence they already have |
 
 ---
 
