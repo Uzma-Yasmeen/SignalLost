@@ -12,3 +12,6 @@ docs/diagrams/
 android/.gradle/
 android/app/build/
 android/local.properties
+
+# Assembled web build
+web/dist/

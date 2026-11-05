@@ -1,0 +1,66 @@
+# Builds the browser version and publishes it, so the game is a link rather
+# than a file somebody has to be talked into installing. This is also the only
+# way it reaches an iPhone: Apple will not run an APK, but Safari will add a
+# web app to the home screen.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pillow
+
+      # The web module compiles the game's own rules to JavaScript, so the
+      # game artifact has to exist before TeaVM can see it.
+      - name: Install the game artifact
+        run: mvn -B install -DskipTests
+
+      - name: Compile the rules to JavaScript
+        working-directory: web
+        run: mvn -B package
+
+      - name: Assemble the site
+        run: python web/assemble.py
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

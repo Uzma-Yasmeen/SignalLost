@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0a0c12">
+<meta name="description" content="A turn-based fog-of-war stealth game. Collect the keys, reach the exit, stay out of sight.">
+
+<!-- iOS needs its own words for the same ideas. These are what make
+     Add to Home Screen open fullscreen rather than in Safari. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Signal Lost">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<title>Signal Lost</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0a0c12; overflow: hidden;
+               overscroll-behavior: none; }
+  canvas { display: block; touch-action: manipulation; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center;
+             color: #8c96af; font: 16px system-ui, sans-serif; }
+</style>
+</head>
+<body>
+  <div id="loading">loading…</div>
+  <canvas id="board"></canvas>
+  <script src="signal-lost.js"></script>
+  <script>
+    document.getElementById('loading').remove();
+    main();
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
