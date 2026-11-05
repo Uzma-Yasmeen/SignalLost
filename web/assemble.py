@@ -3,7 +3,7 @@
 Kept as a script rather than Maven plugin configuration because what it does
 is obvious when read, and because GitHub Pages wants a plain folder.
 """
-import re, shutil
+import hashlib, re, shutil
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -22,6 +22,28 @@ levels = out / "levels"
 levels.mkdir()
 for f in sorted((root / "src/main/resources/levels").glob("*.txt")):
     shutil.copy(f, levels / f.name)
+
+# Stamp the service worker with a hash of what it is about to cache.
+#
+# A browser decides whether to install a new worker by byte-comparing sw.js with
+# the copy it already has. While the cache name was a fixed "v1" this file was
+# identical on every deploy, so no new worker ever installed and every returning
+# player was served the first build they ever opened — for ever. Changing these
+# bytes whenever the game changes is the whole mechanism by which an update
+# reaches anybody.
+digest = hashlib.sha256()
+for f in sorted(out.rglob("*")):
+    if f.is_file() and f.name != "sw.js":
+        digest.update(f.name.encode())
+        digest.update(f.read_bytes())
+build_id = digest.hexdigest()[:12]
+
+worker = out / "sw.js"
+stamped, count = re.subn(r"const BUILD_ID = '[^']*';",
+                         f"const BUILD_ID = '{build_id}';", worker.read_text(encoding="utf-8"))
+if count != 1:
+    raise SystemExit("sw.js has no BUILD_ID to stamp: an update would reach nobody")
+worker.write_text(stamped, encoding="utf-8", newline="\n")
 
 # The same icon the phone uses, from the same sprite data.
 src = (root / "src/main/java/com/signallost/art/CritterPixels.java").read_text(encoding="utf-8")
