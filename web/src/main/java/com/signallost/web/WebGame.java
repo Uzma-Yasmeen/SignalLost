@@ -317,11 +317,30 @@ public final class WebGame {
         return height() * 0.86;
     }
 
+    /**
+     * A tile small enough to still be worth tapping, in CSS pixels.
+     *
+     * <p>Roughly a fingertip. Below this a later level is a grid of specks on a
+     * phone, which is what this floor exists to prevent.
+     */
+    private static final int SMALLEST_USEFUL_TILE = 34;
+
+    /**
+     * How big one tile is drawn.
+     *
+     * <p>Fit the whole board when it fits, and only zoom in past that when
+     * fitting it would make the tiles too small to tap. The floor used to be a
+     * fraction of the screen instead, which meant a big window demanded big
+     * tiles: on a laptop it forced a tile half again larger than the board
+     * needed, so a level that fitted comfortably was pushed off the edges and
+     * the camera had to chase the player around it. A phone is unaffected,
+     * because there the fitted size really is below the floor.
+     */
     private static int tile() {
         GameMap map = state.map();
         double usable = footerTop() - headerBottom();
         double fitted = Math.min(width() / (double) map.cols(), usable / map.rows());
-        return (int) Math.max(fitted, usable / 11);
+        return (int) Math.max(fitted, SMALLEST_USEFUL_TILE);
     }
 
     private static double follow(double view, double board, double centre, double origin) {
