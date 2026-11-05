@@ -313,8 +313,16 @@ public final class WebGame {
         return height() * 0.1;
     }
 
+    /**
+     * The control bar is capped rather than a flat share of the screen.
+     *
+     * <p>A share of the height means a tall window gets a tall bar, and four
+     * buttons that only ever need to be pressed grew into a slab across the
+     * bottom. A phone is below the cap, so it keeps the room it needs; a laptop
+     * stops at a sensible size and gives the space back to the board.
+     */
     private static double footerTop() {
-        return height() * 0.86;
+        return height() - Math.min(height() * 0.14, 76);
     }
 
     /**
@@ -644,20 +652,25 @@ public final class WebGame {
     }
 
     /**
-     * One card in a centred row of six.
+     * One card in a row of six, centred both ways.
      *
      * <p>The width is capped rather than stretched to fill: six cards spread
-     * across a wide window became six billboards, and nothing on the screen
-     * needed to be that size. Whatever the row comes to, it is centred.
+     * across a wide window became six billboards. Within that cap the cards
+     * take what they can get, and the row is then centred in the band between
+     * the heading and the play button rather than hung from the top of it,
+     * which left the whole bottom half of the screen empty.
      */
     private static double[] cardAt(int index) {
         int count = Critter.values().length;
         double gap = width() * 0.015;
         double available = width() * 0.92 - gap * (count - 1);
-        double w = Math.min(available / count, height() * 0.2);
-        double h = Math.min(w * 1.6, height() * 0.46);
+        double bandTop = height() * 0.2;
+        double bandBottom = height() * 0.7;
+        double w = Math.min(available / count, height() * 0.27);
+        double h = Math.min(w * 1.55, bandBottom - bandTop);
         double left = (width() - (w * count + gap * (count - 1))) / 2;
-        return new double[]{left + index * (w + gap), height() * 0.22, w, h};
+        double top = bandTop + (bandBottom - bandTop - h) / 2;
+        return new double[]{left + index * (w + gap), top, w, h};
     }
 
     /**
