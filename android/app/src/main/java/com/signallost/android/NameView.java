@@ -82,8 +82,13 @@ class NameView extends LinearLayout {
         Runnable submit = () -> {
             String chosen = field.getText().toString().trim();
             if (chosen.isEmpty()) {
-                // Nobody should be stopped at the door by a validation error.
-                chosen = "Player";
+                // The name is the save key, not a greeting. Falling back to
+                // "Player" meant everyone who skipped the box shared one set of
+                // stars and watched their progress change under them. So the
+                // door stays shut, and the box says why.
+                field.setError("your stars are saved under this name");
+                field.requestFocus();
+                return;
             }
             hideKeyboard(field);
             onChosen.accept(chosen.length() > 40 ? chosen.substring(0, 40) : chosen);

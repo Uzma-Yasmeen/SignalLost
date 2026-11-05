@@ -40,7 +40,7 @@ class CharacterSelectView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        canvas.drawColor(Palette.BACKDROP);
+        Palette.backdrop(canvas, paint, getWidth(), getHeight());
 
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
@@ -75,9 +75,13 @@ class CharacterSelectView extends View {
     }
 
     private RectF cardAt(int index) {
-        float marginX = getWidth() * 0.04f;
+        // Capped rather than stretched to fill, and the row centred on whatever
+        // it comes to: six cards spread across a wide screen became six
+        // billboards, and nothing here needed to be that size.
         float gap = getWidth() * 0.015f;
-        float cardWidth = (getWidth() - marginX * 2 - gap * (roster.length - 1)) / roster.length;
+        float available = getWidth() * 0.92f - gap * (roster.length - 1);
+        float cardWidth = Math.min(available / roster.length, getHeight() * 0.2f);
+        float marginX = (getWidth() - (cardWidth * roster.length + gap * (roster.length - 1))) / 2;
         float top = getHeight() * 0.18f;
         float cardHeight = getHeight() * 0.52f;
         float left = marginX + index * (cardWidth + gap);
@@ -119,21 +123,29 @@ class CharacterSelectView extends View {
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setColor(picked ? Palette.TEXT : Palette.TEXT_DIM);
         paint.setFakeBoldText(true);
-        paint.setTextSize(card.height() * 0.13f);
+        // The name is fitted to the card for the same reason the tagline is:
+        // sized from the card's height, a long name on a tall card overran it.
+        float nameSize = card.width() * 0.26f;
+        paint.setTextSize(nameSize);
+        float nameRoom = card.width() * 0.86f;
+        float nameNeeded = paint.measureText(critter.displayName());
+        if (nameNeeded > nameRoom) {
+            paint.setTextSize(nameSize * nameRoom / nameNeeded);
+        }
         canvas.drawText(critter.displayName(), card.centerX(),
-                card.top + card.height() * 0.75f, paint);
+                card.top + card.height() * 0.74f, paint);
 
         paint.setFakeBoldText(false);
         paint.setColor(Palette.TEXT_DIM);
         // "soft but stubborn" is twice the width of "all ears", so the size is
         // chosen from the card rather than fixed. At a fixed size the longer
         // taglines ran into their neighbours and read as one word.
-        float tagSize = card.height() * 0.085f;
+        float tagSize = card.width() * 0.13f;
         paint.setTextSize(tagSize);
-        float available = card.width() * 0.92f;
+        float room = card.width() * 0.86f;
         float needed = paint.measureText(critter.tagline());
-        if (needed > available) {
-            paint.setTextSize(tagSize * available / needed);
+        if (needed > room) {
+            paint.setTextSize(tagSize * room / needed);
         }
         canvas.drawText(critter.tagline(), card.centerX(),
                 card.top + card.height() * 0.89f, paint);

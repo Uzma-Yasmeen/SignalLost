@@ -43,7 +43,7 @@ class LevelSelectView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        canvas.drawColor(Palette.BACKDROP);
+        Palette.backdrop(canvas, paint, getWidth(), getHeight());
 
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);

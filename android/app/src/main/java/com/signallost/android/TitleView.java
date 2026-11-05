@@ -1,5 +1,7 @@
 package com.signallost.android;
 
+import com.signallost.art.Critter;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
@@ -21,12 +23,17 @@ class TitleView extends View {
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final String greeting;
+    private final String tally;
+    private final int levelCount;
     private final Runnable onStart;
     private final Runnable onQuit;
 
-    TitleView(Context context, String greeting, Runnable onStart, Runnable onQuit) {
+    TitleView(Context context, String greeting, String tally, int levelCount,
+              Runnable onStart, Runnable onQuit) {
         super(context);
         this.greeting = greeting;
+        this.tally = tally;
+        this.levelCount = levelCount;
         this.onStart = onStart;
         this.onQuit = onQuit;
         setBackgroundColor(Palette.BACKDROP);
@@ -34,27 +41,46 @@ class TitleView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        canvas.drawColor(Palette.BACKDROP);
+        Palette.backdrop(canvas, paint, getWidth(), getHeight());
         float midX = getWidth() / 2f;
-        float midY = getHeight() / 2f;
+        // The block is laid out as one piece against the screen height, the way
+        // the desktop centres its title, so the heading is never stranded.
+        // Sized against the smaller of the two dimensions, not the height
+        // alone: on a short, wide window a height-sized title runs off both
+        // edges, which is exactly what a laptop browser is.
+        float unit = Math.min(getHeight(), getWidth() * 0.9f);
+        float top = getHeight() * 0.5f - unit * 0.34f;
 
-        drawBeam(canvas, midX, midY);
+        drawBeam(canvas, midX, top + unit * 0.14f);
 
-        paint.setColor(Palette.TEXT);
         paint.setTextAlign(Paint.Align.CENTER);
+        paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
-        paint.setTextSize(getHeight() * 0.17f);
-        canvas.drawText("SIGNAL LOST", midX, midY - getHeight() * 0.06f, paint);
+        paint.setTextSize(unit * 0.14f);
+        canvas.drawText("SIGNAL LOST", midX, top + unit * 0.17f, paint);
 
         paint.setFakeBoldText(false);
+        paint.setColor(Palette.ACCENT);
+        paint.setTextSize(unit * 0.042f);
+        canvas.drawText("Find the keys. Reach the exit. Do not be seen.",
+                midX, top + unit * 0.245f, paint);
+
         paint.setColor(Palette.TEXT_DIM);
-        paint.setTextSize(getHeight() * 0.045f);
-        canvas.drawText("a fog-of-war stealth game", midX, midY + getHeight() * 0.02f, paint);
+        paint.setTextSize(unit * 0.036f);
+        canvas.drawText(levelCount + " levels  ·  three stars each",
+                midX, top + unit * 0.3f, paint);
+
+        drawCast(canvas, midX, top + unit * 0.4f, unit);
 
         if (greeting != null) {
-            paint.setColor(Palette.ACCENT);
-            paint.setTextSize(getHeight() * 0.04f);
-            canvas.drawText(greeting, midX, midY + getHeight() * 0.11f, paint);
+            paint.setColor(Palette.TEXT);
+            paint.setFakeBoldText(true);
+            paint.setTextSize(unit * 0.042f);
+            canvas.drawText(greeting, midX, top + unit * 0.52f, paint);
+            paint.setFakeBoldText(false);
+            paint.setColor(Palette.KEY);
+            paint.setTextSize(unit * 0.036f);
+            canvas.drawText(tally, midX, top + unit * 0.565f, paint);
         }
 
         drawButton(canvas, startButton(), "START", Palette.ACCENT, Palette.TEXT);
@@ -62,12 +88,28 @@ class TitleView extends View {
         paint.setTextAlign(Paint.Align.LEFT);
     }
 
-    /** A cone of light with the dark pressing in, which is the game in one picture. */
-    private void drawBeam(Canvas canvas, float midX, float midY) {
+    /** A pool of light with the dark pressing in, which is the game in one picture. */
+    private void drawBeam(Canvas canvas, float cx, float cy) {
         for (int ring = 7; ring >= 1; ring--) {
-            paint.setColor(Palette.withAlpha(Palette.ACCENT, 5 + ring * 2));
-            canvas.drawCircle(midX, midY - getHeight() * 0.04f,
-                    getHeight() * 0.07f * ring, paint);
+            paint.setColor(Palette.withAlpha(Palette.PLAYER, 3 + ring));
+            canvas.drawCircle(cx, cy, getHeight() * 0.055f * ring, paint);
+        }
+    }
+
+    /**
+     * The whole cast lined up, as on the desktop.
+     *
+     * <p>It is the one thing on this screen that is not a word: it says what the
+     * game looks like, and that the characters are yours to pick.
+     */
+    private void drawCast(Canvas canvas, float midX, float centreY, float unit) {
+        Critter[] cast = Critter.values();
+        float size = unit * 0.115f;
+        float gap = size * 0.4f;
+        float total = cast.length * size + (cast.length - 1) * gap;
+        float x = midX - total / 2 + size / 2;
+        for (int i = 0; i < cast.length; i++) {
+            PixelArt.critter(canvas, cast[i], x + i * (size + gap), centreY, size);
         }
     }
 
@@ -93,7 +135,7 @@ class TitleView extends View {
         float height = getHeight() * 0.13f;
         float gap = getWidth() * 0.025f;
         float left = getWidth() / 2f - width - gap / 2 + index * (width + gap);
-        float top = getHeight() * 0.74f;
+        float top = getHeight() * 0.78f;
         return new RectF(left, top, left + width, top + height);
     }
 

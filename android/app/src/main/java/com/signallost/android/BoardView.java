@@ -22,6 +22,8 @@ import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.View;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -194,9 +196,10 @@ class BoardView extends View {
         RectF bounds = tileAt(at);
         int tile = tileSize();
 
-        paint.setColor(type == TileType.WALL
+        int base = type == TileType.WALL
                 ? (lit ? Palette.WALL_SEEN : Palette.WALL_REMEMBERED)
-                : (lit ? Palette.FLOOR_SEEN : Palette.FLOOR_REMEMBERED));
+                : (lit ? Palette.FLOOR_SEEN : Palette.FLOOR_REMEMBERED);
+        paint.setColor(lit ? Palette.shade(base, falloff(at)) : base);
         canvas.drawRoundRect(bounds, tile * 0.16f, tile * 0.16f, paint);
 
         if (!lit) {
@@ -219,14 +222,35 @@ class BoardView extends View {
         canvas.drawRect(cx + tile * 0.13f, cy, cx + tile * 0.18f, cy + tile * 0.14f, paint);
     }
 
+    /**
+     * How brightly a tile is lit, by how far the light had to travel to it.
+     *
+     * <p>The same curve the desktop uses, over the same step counts that the
+     * flood fill already produced. Without it the lit area is one flat sheet
+     * and the torch stops feeling like a torch.
+     */
+    private double falloff(Position at) {
+        if (state.fog().isRevealAll()) {
+            return 1.0;
+        }
+        int distance = state.fog().sightDistance(at);
+        if (distance < 0 || state.fog().sightRadius() == 0) {
+            return 1.0;
+        }
+        return 1.0 - 0.5 * ((double) distance / state.fog().sightRadius());
+    }
+
     private void drawGuardSight(Canvas canvas) {
         int tile = tileSize();
         for (Guard guard : state.guards()) {
             if (!state.fog().isVisible(guard.position())) {
                 continue;
             }
-            paint.setColor(guard.mode() == GuardMode.HUNT
-                    ? Palette.withAlpha(Palette.DANGER, 150) : Palette.WATCHED);
+            // Red means one thing: do not end your turn here. These are the
+            // desktop's exact strengths. Guessing at them gave a wash twice as
+            // heavy, which turned most of a lit room red and left the player
+            // nothing to read.
+            paint.setColor(Palette.withAlpha(Palette.DANGER, dangerStrength(guard.mode())));
             for (Position watched : guard.watchedTiles(state.map())) {
                 if (state.fog().visibilityOf(watched) == TileVisibility.VISIBLE) {
                     canvas.drawRoundRect(tileAt(watched), tile * 0.16f, tile * 0.16f, paint);
@@ -263,29 +287,10 @@ class BoardView extends View {
             canvas.drawCircle(cx, cy, tile * 0.6f, paint);
             paint.setColor(colour);
 
+            // The robot, and only the robot. Markers for hunters and sentinels
+            // were tried and dropped: a clean sprite beats a warning sign, and
+            // the lens colour carries the state as it does on the desktop.
             PixelArt.guard(canvas, guard.mode().name(), cx, cy, tile * 0.95f);
-
-            // The robot sprite is the same for every guard type, as on the
-            // desktop, so the one thing it cannot say is which of them will
-            // chase you. A hunter gets spikes above it; a sentinel a ring,
-            // since it never leaves its post.
-            paint.setColor(colour);
-            if ("Hunter".equals(guard.type())) {
-                Path spikes = new Path();
-                spikes.moveTo(cx - tile * 0.3f, cy - tile * 0.3f);
-                spikes.lineTo(cx - tile * 0.18f, cy - tile * 0.54f);
-                spikes.lineTo(cx - tile * 0.06f, cy - tile * 0.32f);
-                spikes.lineTo(cx + tile * 0.06f, cy - tile * 0.32f);
-                spikes.lineTo(cx + tile * 0.18f, cy - tile * 0.54f);
-                spikes.lineTo(cx + tile * 0.3f, cy - tile * 0.3f);
-                spikes.close();
-                canvas.drawPath(spikes, paint);
-            } else if ("Sentinel".equals(guard.type())) {
-                paint.setStyle(Paint.Style.STROKE);
-                paint.setStrokeWidth(tile * 0.06f);
-                canvas.drawCircle(cx, cy, tile * 0.52f, paint);
-                paint.setStyle(Paint.Style.FILL);
-            }
         }
     }
 
@@ -314,59 +319,238 @@ class BoardView extends View {
     private void drawPlayer(Canvas canvas) {
         int tile = tileSize();
         RectF bounds = tileAt(state.player());
-        paint.setColor(Palette.withAlpha(PixelArt.colourOf(critter), 45));
-        canvas.drawCircle(bounds.centerX(), bounds.centerY(), tile * 0.7f, paint);
+        // A soft pool of torchlight rather than one disc, which is what makes
+        // the dark around it read as dark.
+        for (int ring = 5; ring >= 1; ring--) {
+            paint.setColor(Palette.withAlpha(PixelArt.colourOf(critter), 9));
+            canvas.drawCircle(bounds.centerX(), bounds.centerY(), tile * 0.5f * ring, paint);
+        }
         PixelArt.critter(canvas, critter, bounds.centerX(), bounds.centerY(), tile * 0.95f);
     }
 
     // --------------------------------------------------------- header, footer
 
+    private static int dangerStrength(GuardMode mode) {
+        return switch (mode) {
+            case PATROL -> 46;
+            case ALERT -> 66;
+            case HUNT -> 92;
+        };
+    }
+
     private void drawHeader(Canvas canvas) {
         float bottom = headerBottom();
         paint.setColor(Palette.PANEL);
         canvas.drawRect(0, 0, getWidth(), bottom, paint);
-        paint.setColor(Palette.withAlpha(Palette.ACCENT, 60));
+        paint.setColor(Palette.withAlpha(Palette.BUTTON_EDGE, 90));
         canvas.drawRect(0, bottom - 2, getWidth(), bottom, paint);
 
-        float pad = getWidth() * 0.02f;
-        float baseline = bottom * 0.66f;
+        drawIdentity(canvas);
+        drawReadings(canvas);
+    }
 
-        PixelArt.critter(canvas, critter, pad + bottom * 0.3f, bottom * 0.5f, bottom * 0.62f);
+    /** Who you are playing as, and where, at the left-hand end. */
+    private void drawIdentity(Canvas canvas) {
+        float bottom = headerBottom();
+        PixelArt.critter(canvas, critter, getWidth() * 0.02f + bottom * 0.3f,
+                bottom * 0.5f, bottom * 0.62f);
 
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);
-        paint.setTextSize(bottom * 0.42f);
-        canvas.drawText(prettyLevel(), pad + bottom * 0.7f, baseline, paint);
-        paint.setFakeBoldText(false);
+        paint.setTextSize(bottom * 0.36f);
+        canvas.drawText(critter.displayName(), identityLeft(), bottom * 0.48f, paint);
 
-        // The numbers run right to left from the far edge, so the level name
-        // on the left never collides with them however long it gets.
-        float x = getWidth() - pad;
-        x = chip(canvas, x, "TURNS " + (state.hasTurnLimit()
-                ? state.turnsRemaining() : state.turnsTaken()), Palette.TEXT_DIM, baseline);
-        x = chip(canvas, x, "SEEN " + state.sightings(),
-                state.sightings() > 0 ? Palette.DANGER : Palette.TEXT_DIM, baseline);
-        x = chip(canvas, x, "HINTS " + state.hintsLeft(), Palette.TEXT_DIM, baseline);
-        x = chip(canvas, x, "LIVES " + state.livesLeft(),
-                state.livesLeft() <= 1 ? Palette.DANGER : Palette.TEXT_DIM, baseline);
-        chip(canvas, x, "KEYS " + state.keysHeld() + "/" + state.keysRequired(),
-                state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY, baseline);
+        paint.setFakeBoldText(false);
+        paint.setColor(Palette.TEXT_DIM);
+        paint.setTextSize(bottom * 0.25f);
+        canvas.drawText(prettyLevel() + "  \u00b7  SIGHT " + state.fog().sightRadius(),
+                identityLeft(), bottom * 0.85f, paint);
     }
 
-    /** One right-aligned label; returns the left edge for the next one along. */
-    private float chip(Canvas canvas, float rightEdge, String label, int colour, float baseline) {
-        paint.setTextSize(headerBottom() * 0.3f);
+    private float identityLeft() {
+        return getWidth() * 0.02f + headerBottom() * 0.62f;
+    }
+
+    /** Where the identity block stops, so nothing is drawn across it. */
+    private float identityRightEdge() {
+        float bottom = headerBottom();
+        paint.setFakeBoldText(true);
+        paint.setTextSize(bottom * 0.36f);
+        float name = paint.measureText(critter.displayName());
+        paint.setFakeBoldText(false);
+        paint.setTextSize(bottom * 0.25f);
+        float beneath = paint.measureText(
+                prettyLevel() + "  \u00b7  SIGHT " + state.fog().sightRadius());
+        return identityLeft() + Math.max(name, beneath);
+    }
+
+    /**
+     * A chip waiting to be drawn, and how readily it gives up its place.
+     *
+     * <p>{@code rank} is the order they survive in when the bar is too narrow:
+     * lowest goes first. The developer lamp is the first thing nobody needs; the
+     * key count is the last. The desktop drops them the same way, and on a phone
+     * in landscape it happens most of the time.
+     */
+    private record Chip(String label, int colour, int rank) {
+    }
+
+    private void drawReadings(Canvas canvas) {
+        List<Chip> chips = new ArrayList<>();
+        if (state.fog().isRevealAll()) {
+            chips.add(new Chip("DEV REVEAL", Palette.ACCENT, 1));
+        }
+        if (state.wasSpotted()) {
+            chips.add(new Chip("SPOTTED", Palette.DANGER, 5));
+        }
+        GuardMode alert = state.highestAlertLevel();
+        if (alert != null && alert != GuardMode.PATROL) {
+            chips.add(new Chip(alert.label().toUpperCase(),
+                    alert == GuardMode.HUNT ? Palette.GUARD_HUNT : Palette.GUARD_ALERT, 4));
+        }
+        if (state.sightings() > 0) {
+            chips.add(new Chip("SEEN " + state.sightings(), Palette.GUARD_ALERT, 3));
+        }
+        if (state.canUndo()) {
+            chips.add(new Chip("UNDO " + state.undoDepth(), Palette.ACCENT, 2));
+        }
+        chips.add(new Chip(state.livesLeft() == 1 ? "LAST LIFE" : "LIVES " + state.livesLeft(),
+                livesColour(), 7));
+        chips.add(new Chip(state.hintsLeft() == 0 ? "NO HINTS" : "HINTS " + state.hintsLeft(),
+                hintsColour(), 6));
+        chips.add(new Chip("KEYS " + state.keysHeld() + "/" + state.keysRequired(),
+                state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.KEY, 8));
+
+        float room = getWidth() * 0.98f - identityRightEdge()
+                - headerBottom() * 0.3f - counterWidth();
+        while (chips.size() > 1 && rowWidth(chips) > room) {
+            chips.remove(chips.stream().min(Comparator.comparingInt(Chip::rank)).orElseThrow());
+        }
+
+        float x = getWidth() * 0.98f;
+        for (Chip chip : chips) {
+            x = drawChip(canvas, x, chip.label(), chip.colour());
+        }
+        drawTurnCounter(canvas, x);
+    }
+
+    private float rowWidth(List<Chip> chips) {
+        float total = 0;
+        for (Chip chip : chips) {
+            total += chipWidth(chip.label()) + headerBottom() * 0.1f;
+        }
+        return total;
+    }
+
+    private float chipWidth(String label) {
+        paint.setFakeBoldText(true);
+        paint.setTextSize(headerBottom() * 0.27f);
+        float width = paint.measureText(label) + headerBottom() * 0.62f;
+        paint.setFakeBoldText(false);
+        return width;
+    }
+
+    private int hintsColour() {
+        int hints = state.hintsLeft();
+        if (hints == 0) {
+            return Palette.DANGER;
+        }
+        return hints == 1 ? Palette.GUARD_ALERT : Palette.TEXT_DIM;
+    }
+
+    private int livesColour() {
+        int lives = state.livesLeft();
+        if (lives <= 1) {
+            return Palette.DANGER;
+        }
+        return lives == 2 ? Palette.GUARD_ALERT : Palette.TEXT_DIM;
+    }
+
+    /** A pill right-aligned at {@code rightEdge}, returning the next right edge. */
+    private float drawChip(Canvas canvas, float rightEdge, String label, int colour) {
+        float bottom = headerBottom();
+        float w = chipWidth(label);
+        float h = bottom * 0.48f;
+        float x = rightEdge - w;
+        float y = (bottom - h) / 2;
+        RectF pill = new RectF(x, y, x + w, y + h);
+
+        paint.setColor(Palette.withAlpha(colour, 28));
+        canvas.drawRoundRect(pill, h / 2, h / 2, paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2);
+        paint.setColor(Palette.withAlpha(colour, 90));
+        canvas.drawRoundRect(pill, h / 2, h / 2, paint);
+        paint.setStyle(Paint.Style.FILL);
+
+        // The dot is what makes a pill readable at a glance: the colour lands
+        // before the word does.
         paint.setColor(colour);
-        float width = paint.measureText(label);
-        canvas.drawText(label, rightEdge - width, baseline, paint);
-        return rightEdge - width - getWidth() * 0.022f;
+        canvas.drawCircle(x + h * 0.44f, y + h / 2, h * 0.15f, paint);
+
+        paint.setFakeBoldText(true);
+        paint.setTextSize(bottom * 0.27f);
+        canvas.drawText(label, x + h * 0.72f, y + h * 0.68f, paint);
+        paint.setFakeBoldText(false);
+        return x - bottom * 0.1f;
+    }
+
+    private String turnNumber() {
+        return state.hasTurnLimit()
+                ? state.turnsTaken() + "/" + state.turnLimit()
+                : String.valueOf(state.turnsTaken());
+    }
+
+    private String turnLabel() {
+        return state.hasTurnLimit() ? "TURNS LEFT " + state.turnsRemaining() : "TURNS";
+    }
+
+    private float counterWidth() {
+        paint.setFakeBoldText(true);
+        paint.setTextSize(headerBottom() * 0.46f);
+        float number = paint.measureText(turnNumber());
+        paint.setFakeBoldText(false);
+        paint.setTextSize(headerBottom() * 0.23f);
+        return Math.max(number, paint.measureText(turnLabel()));
+    }
+
+    /** Turns taken over the limit, in whatever gap the chips left. */
+    private void drawTurnCounter(Canvas canvas, float rightEdge) {
+        float bottom = headerBottom();
+        float block = counterWidth();
+        float centre = Math.max(rightEdge - block,
+                identityRightEdge() + bottom * 0.3f) + block / 2;
+
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setColor(clockColour());
+        paint.setFakeBoldText(true);
+        paint.setTextSize(bottom * 0.46f);
+        canvas.drawText(turnNumber(), centre, bottom * 0.52f, paint);
+
+        paint.setFakeBoldText(false);
+        paint.setColor(Palette.TEXT_DIM);
+        paint.setTextSize(bottom * 0.23f);
+        canvas.drawText(turnLabel(), centre, bottom * 0.85f, paint);
+        paint.setTextAlign(Paint.Align.LEFT);
+    }
+
+    /** Pale while there is room, amber when the clock tightens, red at the end. */
+    private int clockColour() {
+        if (!state.hasTurnLimit()) {
+            return Palette.TEXT;
+        }
+        double left = (double) state.turnsRemaining() / state.turnLimit();
+        if (left <= 0.10) {
+            return Palette.DANGER;
+        }
+        return left <= 0.25 ? Palette.GUARD_ALERT : Palette.TEXT;
     }
 
     private void drawFooter(Canvas canvas) {
         float top = footerTop();
         paint.setColor(Palette.PANEL);
         canvas.drawRect(0, top, getWidth(), getHeight(), paint);
-        paint.setColor(Palette.withAlpha(Palette.ACCENT, 60));
+        paint.setColor(Palette.withAlpha(Palette.BUTTON_EDGE, 90));
         canvas.drawRect(0, top, getWidth(), top + 2, paint);
 
         String[] labels = {"UNDO", "HINT  " + state.hintsLeft(), "RESTART", "LEVELS"};

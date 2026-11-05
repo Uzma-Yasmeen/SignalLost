@@ -62,10 +62,13 @@ public class GameActivity extends Activity {
 
     private void showTitle() {
         board = null;
-        String greeting = (profile != null && profile.totalStars() > 0)
-                ? "welcome back, " + profile.name() + "  ·  " + profile.totalStars() + " stars"
+        int levels = LevelCatalog.load().size();
+        boolean returning = profile != null && profile.totalStars() > 0;
+        String greeting = returning ? "Welcome back, " + profile.name().toUpperCase() : null;
+        String tally = returning
+                ? profile.totalStars() + " of " + (levels * Score.MAX_STARS) + " stars collected"
                 : null;
-        show(new TitleView(this, greeting, this::showNameEntry, this::finish));
+        show(new TitleView(this, greeting, tally, levels, this::showNameEntry, this::finish));
     }
 
     private void showNameEntry() {

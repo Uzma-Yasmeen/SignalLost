@@ -31,7 +31,8 @@ def mix(a, b, t): return tuple(int(((a >> s) & 255) * (1 - t) + ((b >> s) & 255)
 LEGEND = {'O':(0x1C,0x22,0x2C),'B':mix(fur,fur,0),'D':mix(shadow,shadow,0),'d':mix(shadow,shadow,0),
           'A':mix(accent,accent,0),'W':(0xFF,0xFB,0xF2),'E':(0x24,0x2C,0x3A),
           'c':mix(fur,accent,0.55),'m':(0xFF,0xE8,0xD6)}
-BACKDROP=(10,12,18); FLOOR=(28,35,52); WALL=(132,152,200); WATCHED=(196,56,68)
+# The desktop's palette, so the installed icon is the game's own colours.
+BACKDROP=(0x05,0x07,0x0C); FLOOR=(0x24,0x32,0x4B); WALL=(0x6E,0x86,0xB2); WATCHED=(0xEF,0x44,0x44)
 SCENE=["  ## "," ..#r"," ...r"," ..#r","  .. "]
 
 def icon(size):

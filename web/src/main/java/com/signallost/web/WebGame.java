@@ -47,21 +47,29 @@ import java.util.List;
  */
 public final class WebGame {
 
-    private static final int BACKDROP = 0x0A0C12;
+    // Every value below is the desktop's, from com.signallost.ui.Palette. They
+    // were picked by hand before and every one was a near-miss, which is most of
+    // why the browser looked like a different game.
+    private static final int BACKDROP = 0x05070C;
+    private static final int BACKDROP_TOP = 0x17203C;
+    private static final int BACKDROP_BOTTOM = 0x080B12;
     private static final int PANEL = 0x141824;
     private static final int BUTTON = 0x1E2436;
     private static final int EDGE = 0x3A4664;
-    private static final int WALL_SEEN = 0x8094C4;
-    private static final int WALL_GONE = 0x2C344C;
-    private static final int FLOOR_SEEN = 0x1A2030;
-    private static final int FLOOR_GONE = 0x10141E;
-    private static final int KEY = 0xF6C446;
-    private static final int EXIT_OPEN = 0x5CD68C;
-    private static final int EXIT_SHUT = 0x5A6480;
-    private static final int TEXT = 0xE8ECF6;
-    private static final int DIM = 0x8C96AF;
-    private static final int DANGER = 0xE84654;
-    private static final int ACCENT = 0x60AAFF;
+    private static final int PLAYER_GLOW = 0x5EEAD4;
+    private static final int HUD_EDGE = 0x1C2638;
+    private static final int GUARD_HUNT = 0xF87171;
+    private static final int WALL_SEEN = 0x6E86B2;
+    private static final int WALL_GONE = 0x3D4D70;
+    private static final int FLOOR_SEEN = 0x24324B;
+    private static final int FLOOR_GONE = 0x121828;
+    private static final int KEY = 0xFBBF24;
+    private static final int EXIT_OPEN = 0x4ADE80;
+    private static final int EXIT_SHUT = 0x9AA8BF;
+    private static final int TEXT = 0xE6EDF7;
+    private static final int DIM = 0x75849E;
+    private static final int DANGER = 0xEF4444;
+    private static final int ACCENT = 0x38BDF8;
 
     /**
      * Progress is stored per player, as on the phone.
@@ -82,6 +90,7 @@ public final class WebGame {
     private static Critter critter = Critter.defaultChoice();
     private static String player = "";
     private static HTMLInputElement nameField;
+    private static boolean nameMissing;
     private static GameState state;
     private static String levelName;
     private static int hintTurn = -1;
@@ -131,10 +140,17 @@ public final class WebGame {
 
     private static void acceptName() {
         String typed = nameField.getValue().trim();
-        player = typed.isEmpty() ? "Player" : typed;
-        if (player.length() > 40) {
-            player = player.substring(0, 40);
+        if (typed.isEmpty()) {
+            // The name is the save key, not a greeting. Falling back to
+            // "Player" meant everyone who skipped the box shared one set of
+            // stars and watched their progress change under them.
+            nameMissing = true;
+            nameField.focus();
+            draw();
+            return;
         }
+        nameMissing = false;
+        player = typed.length() > 40 ? typed.substring(0, 40) : typed;
         rememberLastPlayer();
         hideNameField();
         screen = Screen.CHARACTER;
@@ -322,6 +338,33 @@ public final class WebGame {
 
     // ----------------------------------------------------------------- draw
 
+    /**
+     * How brightly a tile is lit, by how far the light had to travel to it.
+     *
+     * <p>The same curve the desktop uses, over the same step counts: sight is a
+     * flood fill, so every visible tile already knows how many steps from the
+     * player it is. Without this the lit area is one flat sheet and the torch
+     * stops feeling like a torch.
+     */
+    private static double falloff(Position at) {
+        if (state.fog().isRevealAll()) {
+            return 1.0;
+        }
+        int distance = state.fog().sightDistance(at);
+        if (distance < 0 || state.fog().sightRadius() == 0) {
+            return 1.0;
+        }
+        return 1.0 - 0.5 * ((double) distance / state.fog().sightRadius());
+    }
+
+    private static int shade(int colour, double factor) {
+        double f = Math.max(0, Math.min(1, factor));
+        int r = (int) (((colour >> 16) & 0xFF) * f);
+        int g2 = (int) (((colour >> 8) & 0xFF) * f);
+        int b = (int) ((colour & 0xFF) * f);
+        return (r << 16) | (g2 << 8) | b;
+    }
+
     private static void fill(int colour) {
         g.setFillStyle("#" + String.format("%06x", colour));
     }
@@ -331,6 +374,13 @@ public final class WebGame {
         int gr = (colour >> 8) & 0xFF;
         int b = colour & 0xFF;
         g.setFillStyle("rgba(" + r + "," + gr + "," + b + "," + alpha + ")");
+    }
+
+    private static void strokeAlpha(int colour, double alpha) {
+        int r = (colour >> 16) & 0xFF;
+        int gr = (colour >> 8) & 0xFF;
+        int b = colour & 0xFF;
+        g.setStrokeStyle("rgba(" + r + "," + gr + "," + b + "," + alpha + ")");
     }
 
     private static void box(double x, double y, double w, double h, double radius, int colour) {
@@ -368,8 +418,7 @@ public final class WebGame {
             return;
         }
         resize();
-        fill(BACKDROP);
-        g.fillRect(0, 0, width(), height());
+        backdrop();
         switch (screen) {
             case TITLE -> drawTitle();
             case NAME -> drawName();
@@ -380,24 +429,64 @@ public final class WebGame {
         }
     }
 
+    /**
+     * The vertical wash the desktop paints behind every screen.
+     *
+     * <p>A stack of strips rather than a canvas gradient object, so the same
+     * arithmetic runs on all three front ends over the same two colours.
+     */
+    private static void backdrop() {
+        int strips = 48;
+        double band = height() / (double) strips + 1;
+        for (int i = 0; i < strips; i++) {
+            fill(Critter.blend(BACKDROP_TOP, BACKDROP_BOTTOM, i / (double) (strips - 1)));
+            g.fillRect(0, i * (height() / (double) strips), width(), band);
+        }
+    }
+
     private static void drawTitle() {
         double midX = width() / 2.0;
-        double midY = height() / 2.0;
+        // The block is centred as one piece, so a wide window does not strand
+        // the heading near the top. The desktop centres the same way.
+        // Sized against the smaller of the two dimensions, not the height
+        // alone: on a short, wide window a height-sized title runs off both
+        // edges, which is exactly what a laptop browser is.
+        double unit = Math.min(height(), width() * 0.9);
+        double top = height() * 0.5 - unit * 0.34;
+
         for (int ring = 7; ring >= 1; ring--) {
-            fillAlpha(ACCENT, 0.02 + ring * 0.008);
+            fillAlpha(PLAYER_GLOW, 0.012 + ring * 0.004);
             g.beginPath();
-            g.arc(midX, midY - height() * 0.06, height() * 0.07 * ring, 0, Math.PI * 2);
+            g.arc(midX, top + unit * 0.14, unit * 0.055 * ring, 0, Math.PI * 2);
             g.fill();
         }
-        text("SIGNAL LOST", midX, midY - height() * 0.04, height() * 0.15, TEXT, "center", true);
-        text("a fog-of-war stealth game", midX, midY + height() * 0.03,
-                height() * 0.04, DIM, "center", false);
-        int stars = lastPlayer().isEmpty() ? 0 : totalStarsFor(lastPlayer());
-        if (stars > 0) {
-            text("welcome back, " + lastPlayer() + "  ·  " + stars + " stars",
-                    midX, midY + height() * 0.1, height() * 0.035, ACCENT, "center", false);
+
+        text("SIGNAL LOST", midX, top + unit * 0.17, unit * 0.14, TEXT, "center", true);
+        text("Find the keys. Reach the exit. Do not be seen.",
+                midX, top + unit * 0.245, unit * 0.042, ACCENT, "center", false);
+        text(LEVELS.size() + " levels  ·  three stars each",
+                midX, top + unit * 0.3, unit * 0.036, DIM, "center", false);
+
+        // The whole cast lined up, as on the desktop: a reason to look at the
+        // screen, and a promise that the characters are choosable.
+        Critter[] cast = Critter.values();
+        double size = unit * 0.115;
+        double gap = size * 0.4;
+        double total = cast.length * size + (cast.length - 1) * gap;
+        double castX = midX - total / 2 + size / 2;
+        for (int i = 0; i < cast.length; i++) {
+            sprite(cast[i], castX + i * (size + gap), top + unit * 0.4, size);
         }
-        double[] start = titleButton();
+
+        String back = lastPlayer();
+        if (!back.isEmpty()) {
+            text("Welcome back, " + back.toUpperCase(),
+                    midX, top + unit * 0.52, unit * 0.042, TEXT, "center", true);
+            text(totalStarsFor(back) + " of " + (LEVELS.size() * 3) + " stars collected",
+                    midX, top + unit * 0.565, unit * 0.036, KEY, "center", false);
+        }
+
+        double[] start = startButton();
         box(start[0], start[1], start[2], start[3], start[3] / 2, BUTTON);
         text("START", start[0] + start[2] / 2, start[1] + start[3] * 0.65,
                 start[3] * 0.4, TEXT, "center", true);
@@ -411,8 +500,13 @@ public final class WebGame {
         drawBack();
         text("WHO IS PLAYING?", width() / 2.0, height() * 0.3,
                 height() * 0.09, TEXT, "center", true);
-        text("your stars are saved under this name", width() / 2.0, height() * 0.38,
-                height() * 0.04, DIM, "center", false);
+        if (nameMissing) {
+            text("a name is needed \u2014 your stars are saved under it",
+                    width() / 2.0, height() * 0.38, height() * 0.04, DANGER, "center", true);
+        } else {
+            text("your stars are saved under this name", width() / 2.0, height() * 0.38,
+                    height() * 0.04, DIM, "center", false);
+        }
         double[] go = titleButton();
         box(go[0], go[1], go[2], go[3], go[3] / 2, BUTTON);
         text("CONTINUE", go[0] + go[2] / 2, go[1] + go[3] * 0.65,
@@ -461,15 +555,28 @@ public final class WebGame {
         g.stroke();
     }
 
-    private static double[] titleButton() {
+    private static double[] buttonRow(double top) {
         double w = Math.min(width() * 0.24, 360);
-        double h = height() * 0.12;
         double gap = width() * 0.025;
-        return new double[]{width() / 2.0 - w - gap / 2, height() * 0.74, w, h};
+        return new double[]{width() / 2.0 - w - gap / 2, top, w, height() * 0.12};
+    }
+
+    private static double[] titleButton() {
+        return buttonRow(height() * 0.74);
+    }
+
+    /**
+     * START and QUIT, which sit lower than the other screens' single button.
+     *
+     * <p>The title screen has two lines above them for a returning player, and
+     * at the shared height the greeting ran into the buttons.
+     */
+    private static double[] startButton() {
+        return buttonRow(height() * 0.78);
     }
 
     private static double[] quitButton() {
-        double[] start = titleButton();
+        double[] start = startButton();
         return new double[]{start[0] + start[2] + width() * 0.025, start[1], start[2], start[3]};
     }
 
@@ -487,11 +594,11 @@ public final class WebGame {
             g.setLineWidth(picked ? 4 : 2);
             roundPath(card[0], card[1], card[2], card[3], card[2] * 0.12);
             g.stroke();
-            sprite(roster[i], card[0] + card[2] / 2, card[1] + card[3] * 0.36, card[2] * 0.62);
-            text(roster[i].displayName(), card[0] + card[2] / 2, card[1] + card[3] * 0.76,
-                    card[3] * 0.13, picked ? TEXT : DIM, "center", true);
-            text(roster[i].tagline(), card[0] + card[2] / 2, card[1] + card[3] * 0.89,
-                    card[3] * 0.075, DIM, "center", false);
+            sprite(roster[i], card[0] + card[2] / 2, card[1] + card[3] * 0.36, card[2] * 0.56);
+            fitted(roster[i].displayName(), card[0] + card[2] / 2, card[1] + card[3] * 0.74,
+                    card[2] * 0.26, card[2] * 0.82, picked ? TEXT : DIM, true);
+            fitted(roster[i].tagline(), card[0] + card[2] / 2, card[1] + card[3] * 0.88,
+                    card[2] * 0.13, card[2] * 0.86, DIM, false);
         }
         double[] play = titleButton();
         box(play[0], play[1], play[2], play[3], play[3] / 2, BUTTON);
@@ -499,12 +606,41 @@ public final class WebGame {
                 play[1] + play[3] * 0.65, play[3] * 0.35, TEXT, "center", true);
     }
 
+    /**
+     * One card in a centred row of six.
+     *
+     * <p>The width is capped rather than stretched to fill: six cards spread
+     * across a wide window became six billboards, and nothing on the screen
+     * needed to be that size. Whatever the row comes to, it is centred.
+     */
     private static double[] cardAt(int index) {
         int count = Critter.values().length;
-        double margin = width() * 0.04;
         double gap = width() * 0.015;
-        double w = (width() - margin * 2 - gap * (count - 1)) / count;
-        return new double[]{margin + index * (w + gap), height() * 0.2, w, height() * 0.46};
+        double available = width() * 0.92 - gap * (count - 1);
+        double w = Math.min(available / count, height() * 0.2);
+        double h = Math.min(w * 1.6, height() * 0.46);
+        double left = (width() - (w * count + gap * (count - 1))) / 2;
+        return new double[]{left + index * (w + gap), height() * 0.22, w, h};
+    }
+
+    /**
+     * Centred text that shrinks rather than overrun the box it belongs to.
+     *
+     * <p>Sizing these from the screen let a short tagline fit and a long one
+     * spill into the next card along, which reads as a layout fault even though
+     * every card is the same size.
+     */
+    private static void fitted(String what, double centreX, double baseline,
+                               double size, double maxWidth, int colour, boolean bold) {
+        double font = size;
+        for (int attempt = 0; attempt < 12; attempt++) {
+            g.setFont((bold ? "bold " : "") + (int) font + "px system-ui, sans-serif");
+            if (g.measureText(what).getWidth() <= maxWidth || font <= 7) {
+                break;
+            }
+            font *= 0.9;
+        }
+        text(what, centreX, baseline, font, colour, "center", bold);
     }
 
     private static void drawLevels() {
@@ -563,9 +699,10 @@ public final class WebGame {
                 TileType type = map.tileAt(at);
                 double x = boardLeft() + col * t;
                 double y = boardTop() + row * t;
-                box(x + 1, y + 1, t - 2, t - 2, t * 0.16,
-                        type == TileType.WALL ? (lit ? WALL_SEEN : WALL_GONE)
-                                : (lit ? FLOOR_SEEN : FLOOR_GONE));
+                double light = lit ? falloff(at) : 1.0;
+                int base = type == TileType.WALL ? (lit ? WALL_SEEN : WALL_GONE)
+                        : (lit ? FLOOR_SEEN : FLOOR_GONE);
+                box(x + 1, y + 1, t - 2, t - 2, t * 0.16, lit ? shade(base, light) : base);
                 if (lit && type == TileType.KEY) {
                     tinted(ObjectPixels.key(), ObjectPixels.KEY_COLOUR,
                             x + t / 2.0, y + t / 2.0, t * 0.78);
@@ -586,7 +723,11 @@ public final class WebGame {
                     : guard.mode() == GuardMode.ALERT ? KEY : 0x6088D4;
             for (Position watched : guard.watchedTiles(map)) {
                 if (state.fog().visibilityOf(watched) == TileVisibility.VISIBLE) {
-                    fillAlpha(DANGER, guard.mode() == GuardMode.HUNT ? 0.55 : 0.4);
+                    // Red means one thing: do not end your turn here. These are the
+            // desktop's exact strengths. Guessing at them gave a wash twice as
+            // heavy, which turned most of a lit room red and left the player
+            // nothing to read.
+                    fillAlpha(DANGER, dangerStrength(guard.mode()));
                     roundPath(boardLeft() + watched.col() * t + 1,
                             boardTop() + watched.row() * t + 1, t - 2, t - 2, t * 0.16);
                     g.fill();
@@ -598,30 +739,12 @@ public final class WebGame {
             g.beginPath();
             g.arc(gx + t / 2.0, gy + t / 2.0, t * 0.6, 0, Math.PI * 2);
             g.fill();
+            // The robot, and only the robot. Markers for hunters and sentinels
+            // were tried and dropped: they told the player which guard would
+            // chase them, and made a clean sprite look like a warning sign.
+            // The lens colour carries the state, as it does on the desktop.
             pixels(GuardPixels.shape(), GuardPixels.paletteFor(guard.mode().name()),
                     gx + t / 2.0, gy + t / 2.0, t * 0.95);
-
-            // The robot is the same whatever the guard is, so the sprite alone
-            // cannot say which one will chase you. Spikes mark a hunter; a ring
-            // marks a sentinel, which never leaves its post.
-            fill(colour);
-            if ("Hunter".equals(guard.type())) {
-                g.beginPath();
-                g.moveTo(gx + t * 0.2, gy + t * 0.2);
-                g.lineTo(gx + t * 0.32, gy - t * 0.04);
-                g.lineTo(gx + t * 0.44, gy + t * 0.18);
-                g.lineTo(gx + t * 0.56, gy + t * 0.18);
-                g.lineTo(gx + t * 0.68, gy - t * 0.04);
-                g.lineTo(gx + t * 0.8, gy + t * 0.2);
-                g.closePath();
-                g.fill();
-            } else if ("Sentinel".equals(guard.type())) {
-                g.setStrokeStyle("#" + String.format("%06x", colour));
-                g.setLineWidth(t * 0.06);
-                g.beginPath();
-                g.arc(gx + t / 2.0, gy + t / 2.0, t * 0.52, 0, Math.PI * 2);
-                g.stroke();
-            }
         }
 
         if (hintTurn == state.turnsTaken()) {
@@ -638,10 +761,14 @@ public final class WebGame {
 
         double px = boardLeft() + state.player().col() * t;
         double py = boardTop() + state.player().row() * t;
-        fillAlpha(critter.fur(), 0.18);
-        g.beginPath();
-        g.arc(px + t / 2.0, py + t / 2.0, t * 0.65, 0, Math.PI * 2);
-        g.fill();
+        // Several faint discs rather than one: a soft pool of torchlight,
+        // which is what makes the dark around it read as dark.
+        for (int ring = 5; ring >= 1; ring--) {
+            fillAlpha(critter.fur(), 0.035);
+            g.beginPath();
+            g.arc(px + t / 2.0, py + t / 2.0, t * 0.5 * ring, 0, Math.PI * 2);
+            g.fill();
+        }
         sprite(critter, px + t / 2.0, py + t / 2.0, t * 0.92);
         g.restore();
 
@@ -653,18 +780,12 @@ public final class WebGame {
         fill(PANEL);
         g.fillRect(0, 0, width(), headerBottom());
         g.fillRect(0, footerTop(), width(), height() - footerTop());
+        fill(HUD_EDGE);
+        g.fillRect(0, headerBottom() - 1, width(), 1);
+        g.fillRect(0, footerTop(), width(), 1);
 
-        sprite(critter, width() * 0.03, headerBottom() * 0.5, headerBottom() * 0.6);
-        text(levelName.replaceAll("(?<=\\D)(?=\\d)", " ").toUpperCase(),
-                width() * 0.06, headerBottom() * 0.66, headerBottom() * 0.4, TEXT, "left", true);
-
-        String stats = "KEYS " + state.keysHeld() + "/" + state.keysRequired()
-                + "    LIVES " + state.livesLeft()
-                + "    HINTS " + state.hintsLeft()
-                + "    SEEN " + state.sightings()
-                + "    TURNS " + (state.hasTurnLimit() ? state.turnsRemaining() : state.turnsTaken());
-        text(stats, width() * 0.97, headerBottom() * 0.66, headerBottom() * 0.3,
-                state.sightings() > 0 ? DANGER : DIM, "right", false);
+        drawIdentity();
+        drawReadings();
 
         String[] labels = {"UNDO", "HINT " + state.hintsLeft(), "RESTART", "LEVELS"};
         for (int i = 0; i < labels.length; i++) {
@@ -672,6 +793,192 @@ public final class WebGame {
             box(b[0], b[1], b[2], b[3], b[3] * 0.3, BUTTON);
             text(labels[i], b[0] + b[2] / 2, b[1] + b[3] * 0.65, b[3] * 0.38, TEXT, "center", false);
         }
+    }
+
+    /** Who you are playing as, and where, at the left-hand end. */
+    private static void drawIdentity() {
+        double h = headerBottom();
+        sprite(critter, width() * 0.028, h * 0.5, h * 0.62);
+        text(critter.displayName(), identityLeft(), h * 0.46, h * 0.34, TEXT, "left", true);
+        text(prettyLevel() + "  \u00b7  SIGHT " + state.fog().sightRadius(),
+                identityLeft(), h * 0.82, h * 0.24, DIM, "left", false);
+    }
+
+    private static double identityLeft() {
+        return width() * 0.028 + headerBottom() * 0.45;
+    }
+
+    private static String prettyLevel() {
+        return levelName.replaceAll("(?<=\\D)(?=\\d)", " ").toUpperCase();
+    }
+
+    /**
+     * The chips and the turn counter.
+     *
+     * <p>Chips are laid out right to left and the counter takes what is left,
+     * so when the row is too long the least important chips are dropped first
+     * rather than letting the counter slide over the player's name. On a phone
+     * in landscape that is most of the time.
+     */
+    private static void drawReadings() {
+        List<String[]> chips = new ArrayList<>();
+        if (state.fog().isRevealAll()) {
+            chips.add(reading("DEV REVEAL", ACCENT, 1));
+        }
+        if (state.wasSpotted()) {
+            chips.add(reading("SPOTTED", DANGER, 5));
+        }
+        GuardMode alert = state.highestAlertLevel();
+        if (alert != null && alert != GuardMode.PATROL) {
+            chips.add(reading(alert.label().toUpperCase(),
+                    alert == GuardMode.HUNT ? GUARD_HUNT : KEY, 4));
+        }
+        if (state.sightings() > 0) {
+            chips.add(reading("SEEN " + state.sightings(), KEY, 3));
+        }
+        if (state.canUndo()) {
+            chips.add(reading("UNDO " + state.undoDepth(), ACCENT, 2));
+        }
+        chips.add(reading(state.livesLeft() == 1 ? "LAST LIFE" : "LIVES " + state.livesLeft(),
+                livesColour(), 7));
+        chips.add(reading(state.hintsLeft() == 0 ? "NO HINTS" : "HINTS " + state.hintsLeft(),
+                hintsColour(), 6));
+        chips.add(reading("KEYS " + state.keysHeld() + "/" + state.keysRequired(),
+                state.hasAllKeys() ? EXIT_OPEN : KEY, 8));
+
+        double room = width() * 0.97 - identityRightEdge() - headerBottom() * 0.3 - counterWidth();
+        while (chips.size() > 1 && rowWidth(chips) > room) {
+            int weakest = 0;
+            for (int i = 1; i < chips.size(); i++) {
+                if (rank(chips.get(i)) < rank(chips.get(weakest))) {
+                    weakest = i;
+                }
+            }
+            chips.remove(weakest);
+        }
+
+        double x = width() * 0.97;
+        for (String[] chip : chips) {
+            x = drawChip(x, chip[0], Integer.parseInt(chip[1]));
+        }
+        drawTurnCounter(x);
+    }
+
+    private static String[] reading(String label, int colour, int rank) {
+        return new String[]{label, String.valueOf(colour), String.valueOf(rank)};
+    }
+
+    private static int rank(String[] chip) {
+        return Integer.parseInt(chip[2]);
+    }
+
+    private static double rowWidth(List<String[]> chips) {
+        double total = 0;
+        for (String[] chip : chips) {
+            total += chipWidth(chip[0]) + headerBottom() * 0.1;
+        }
+        return total;
+    }
+
+    private static double chipFont() {
+        return headerBottom() * 0.26;
+    }
+
+    private static double chipWidth(String label) {
+        g.setFont("bold " + (int) chipFont() + "px system-ui, sans-serif");
+        return g.measureText(label).getWidth() + headerBottom() * 0.62;
+    }
+
+    /** Where the identity block stops, so nothing is drawn across it. */
+    private static double identityRightEdge() {
+        g.setFont("bold " + (int) (headerBottom() * 0.34) + "px system-ui, sans-serif");
+        double name = g.measureText(critter.displayName()).getWidth();
+        g.setFont((int) (headerBottom() * 0.24) + "px system-ui, sans-serif");
+        double beneath = g.measureText(
+                prettyLevel() + "  \u00b7  SIGHT " + state.fog().sightRadius()).getWidth();
+        return identityLeft() + Math.max(name, beneath);
+    }
+
+    private static int hintsColour() {
+        int hints = state.hintsLeft();
+        if (hints == 0) {
+            return DANGER;
+        }
+        return hints == 1 ? KEY : DIM;
+    }
+
+    private static int livesColour() {
+        int lives = state.livesLeft();
+        if (lives <= 1) {
+            return DANGER;
+        }
+        return lives == 2 ? KEY : DIM;
+    }
+
+    /** A pill right-aligned at {@code rightEdge}, returning the next right edge. */
+    private static double drawChip(double rightEdge, String label, int colour) {
+        double font = chipFont();
+        double w = chipWidth(label);
+        double h = headerBottom() * 0.46;
+        double x = rightEdge - w;
+        double y = (headerBottom() - h) / 2;
+
+        fillAlpha(colour, 0.11);
+        roundPath(x, y, w, h, h / 2);
+        g.fill();
+        strokeAlpha(colour, 0.35);
+        g.setLineWidth(1.5);
+        roundPath(x, y, w, h, h / 2);
+        g.stroke();
+
+        // The dot is what makes a pill readable at a glance: the colour lands
+        // before the word does.
+        fill(colour);
+        g.beginPath();
+        g.arc(x + h * 0.44, y + h / 2, h * 0.15, 0, Math.PI * 2);
+        g.fill();
+
+        text(label, x + h * 0.72, y + h * 0.69, font, colour, "left", true);
+        return x - headerBottom() * 0.1;
+    }
+
+    private static String turnNumber() {
+        return state.hasTurnLimit()
+                ? state.turnsTaken() + "/" + state.turnLimit()
+                : String.valueOf(state.turnsTaken());
+    }
+
+    private static String turnLabel() {
+        return state.hasTurnLimit() ? "TURNS LEFT " + state.turnsRemaining() : "TURNS";
+    }
+
+    private static double counterWidth() {
+        g.setFont("bold " + (int) (headerBottom() * 0.44) + "px ui-monospace, monospace");
+        double number = g.measureText(turnNumber()).getWidth();
+        g.setFont((int) (headerBottom() * 0.22) + "px system-ui, sans-serif");
+        return Math.max(number, g.measureText(turnLabel()).getWidth());
+    }
+
+    /** Turns taken over the limit, in the gap the chips left. */
+    private static void drawTurnCounter(double rightEdge) {
+        double block = counterWidth();
+        double x = Math.max(rightEdge - block,
+                identityRightEdge() + headerBottom() * 0.3) + block / 2;
+        text(turnNumber(), x, headerBottom() * 0.52, headerBottom() * 0.44,
+                clockColour(), "center", true);
+        text(turnLabel(), x, headerBottom() * 0.84, headerBottom() * 0.22, DIM, "center", false);
+    }
+
+    /** Pale while there is room, amber when the clock tightens, red at the end. */
+    private static int clockColour() {
+        if (!state.hasTurnLimit()) {
+            return TEXT;
+        }
+        double left = (double) state.turnsRemaining() / state.turnLimit();
+        if (left <= 0.10) {
+            return DANGER;
+        }
+        return left <= 0.25 ? KEY : TEXT;
     }
 
     private static double[] footerButton(int index) {
@@ -700,6 +1007,14 @@ public final class WebGame {
         double y = b[1] + b[3] - h - b[3] * 0.1;
         double x = left ? b[0] + b[2] / 2 - w - b[2] * 0.02 : b[0] + b[2] / 2 + b[2] * 0.02;
         return new double[]{x, y, w, h};
+    }
+
+    private static double dangerStrength(GuardMode mode) {
+        return switch (mode) {
+            case PATROL -> 46 / 255.0;
+            case ALERT -> 66 / 255.0;
+            case HUNT -> 92 / 255.0;
+        };
     }
 
     private static void drawVerdict() {
@@ -797,7 +1112,7 @@ public final class WebGame {
         double y = event.getClientY();
         switch (screen) {
             case TITLE -> {
-                if (inside(titleButton(), x, y)) {
+                if (inside(startButton(), x, y)) {
                     screen = Screen.NAME;
                     showNameField();
                 } else if (inside(quitButton(), x, y)) {
