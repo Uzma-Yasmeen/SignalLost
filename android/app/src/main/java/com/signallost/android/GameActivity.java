@@ -30,6 +30,9 @@ public class GameActivity extends Activity {
     private FrameLayout root;
     private ProgressStore store;
     private PlayerProfile profile;
+
+    /** Whoever signed in since the app was opened, so going back does not retype. */
+    private String signedInThisRun;
     private Critter critter = Critter.defaultChoice();
     private BoardView board;
 
@@ -72,7 +75,14 @@ public class GameActivity extends Activity {
     }
 
     private void showNameEntry() {
-        show(new NameView(this, profile == null ? null : profile.name(), chosen -> {
+        // The box starts empty unless somebody signed in during THIS run, so
+        // stepping back and forth does not make you retype. It is never filled
+        // in from the saved profile: a new player who pressed CONTINUE on a
+        // pre-filled name was quietly signed in as the last one and handed
+        // their stars. On a phone passed between friends that is the normal
+        // case, and the title screen already greets the returning player.
+        show(new NameView(this, signedInThisRun, chosen -> {
+            signedInThisRun = chosen;
             profile = store.loadFor(chosen);
             showCharacterSelect();
         }, this::showTitle));

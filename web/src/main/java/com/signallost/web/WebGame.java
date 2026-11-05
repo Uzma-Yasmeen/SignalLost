@@ -128,7 +128,13 @@ public final class WebGame {
     private static void showNameField() {
         HTMLElement style = nameField;
         nameField.getStyle().setProperty("display", "block");
-        nameField.setValue(player.isEmpty() ? lastPlayer() : player);
+        // Only whoever is signed in during THIS visit, so stepping back and
+        // forth does not make you retype. Never the last player from a previous
+        // visit: the box arrived pre-filled with their name, so a new player
+        // who pressed CONTINUE was quietly signed in as them and handed their
+        // stars. On a phone passed between friends that is the normal case, not
+        // the edge case, and the title screen already greets them by name.
+        nameField.setValue(player);
         nameField.focus();
     }
 
@@ -555,14 +561,26 @@ public final class WebGame {
         g.stroke();
     }
 
-    private static double[] buttonRow(double top) {
-        double w = Math.min(width() * 0.24, 360);
-        double gap = width() * 0.025;
-        return new double[]{width() / 2.0 - w - gap / 2, top, w, height() * 0.12};
+    private static double buttonWidth() {
+        return Math.min(width() * 0.24, 360);
     }
 
+    /** The left-hand seat of a two-button row. */
+    private static double[] buttonRow(double top) {
+        double w = buttonWidth();
+        return new double[]{width() / 2.0 - w - width() * 0.025 / 2, top, w, height() * 0.12};
+    }
+
+    /**
+     * The single button on a screen that has only one.
+     *
+     * <p>CONTINUE and PLAY AS were borrowing the title screen's left-hand seat,
+     * which is half a button and half a gap off centre. On a screen with
+     * nothing beside them that just looks like a mistake, because it is one.
+     */
     private static double[] titleButton() {
-        return buttonRow(height() * 0.74);
+        double w = buttonWidth();
+        return new double[]{width() / 2.0 - w / 2, height() * 0.74, w, height() * 0.12};
     }
 
     /**
