@@ -2,6 +2,8 @@ package com.signallost.web;
 
 import com.signallost.art.Critter;
 import com.signallost.art.CritterPixels;
+import com.signallost.art.GuardPixels;
+import com.signallost.art.ObjectPixels;
 import com.signallost.guard.Guard;
 import com.signallost.guard.GuardMode;
 import com.signallost.level.Level;
@@ -21,6 +23,8 @@ import org.teavm.jso.canvas.CanvasRenderingContext2D;
 import org.teavm.jso.dom.events.KeyboardEvent;
 import org.teavm.jso.dom.events.MouseEvent;
 import org.teavm.jso.dom.html.HTMLCanvasElement;
+import org.teavm.jso.dom.html.HTMLElement;
+import org.teavm.jso.dom.html.HTMLInputElement;
 import org.teavm.jso.dom.html.HTMLDocument;
 
 import java.util.ArrayList;
@@ -59,14 +63,25 @@ public final class WebGame {
     private static final int DANGER = 0xE84654;
     private static final int ACCENT = 0x60AAFF;
 
-    private static final String SAVE_KEY = "signal-lost.progress";
+    /**
+     * Progress is stored per player, as on the phone.
+     *
+     * <p>A browser is shared more often than a phone is, so one anonymous pile
+     * of stars would mean whoever played last overwrote whoever played before.
+     * The key carries the name; {@code LAST_PLAYER} is only so the title screen
+     * can say hello.
+     */
+    private static final String SAVE_PREFIX = "signal-lost.progress.";
+    private static final String LAST_PLAYER = "signal-lost.player";
 
-    private enum Screen { TITLE, CHARACTER, LEVELS, PLAYING }
+    private enum Screen { TITLE, NAME, CHARACTER, LEVELS, PLAYING, GOODBYE }
 
     private static HTMLCanvasElement canvas;
     private static CanvasRenderingContext2D g;
     private static Screen screen = Screen.TITLE;
     private static Critter critter = Critter.defaultChoice();
+    private static String player = "";
+    private static HTMLInputElement nameField;
     private static GameState state;
     private static String levelName;
     private static int hintTurn = -1;
@@ -84,13 +99,65 @@ public final class WebGame {
         canvas.addEventListener("click", (MouseEvent event) -> onClick(event));
         document.addEventListener("keydown", (KeyboardEvent event) -> onKey(event));
         Window.current().addEventListener("resize", e -> draw());
+        // Covers the case above: a page shown after it was loaded hidden.
+        document.addEventListener("visibilitychange", e -> draw());
+        Window.current().addEventListener("pageshow", e -> draw());
 
+        nameField = (HTMLInputElement) document.getElementById("name");
+        hideNameField();
         loadCatalogue();
+    }
+
+    /**
+     * The one piece of the game that is not drawn.
+     *
+     * <p>Reimplementing a text field and a keyboard on a canvas to keep the
+     * styling uniform would be a lot of work to arrive somewhere worse, so the
+     * name screen borrows the browser's own input exactly as the phone borrows
+     * Android's.
+     */
+    private static void showNameField() {
+        HTMLElement style = nameField;
+        nameField.getStyle().setProperty("display", "block");
+        nameField.setValue(player.isEmpty() ? lastPlayer() : player);
+        nameField.focus();
+    }
+
+    private static void hideNameField() {
+        if (nameField != null) {
+            nameField.getStyle().setProperty("display", "none");
+        }
+    }
+
+    private static void acceptName() {
+        String typed = nameField.getValue().trim();
+        player = typed.isEmpty() ? "Player" : typed;
+        if (player.length() > 40) {
+            player = player.substring(0, 40);
+        }
+        rememberLastPlayer();
+        hideNameField();
+        screen = Screen.CHARACTER;
+        draw();
     }
 
     // ------------------------------------------------------------- loading
 
     /** The catalogue is a text file, same as the desktop reads from its jar. */
+    /** Who played here last, so the title can greet them. */
+    private static void rememberLastPlayer() {
+        Storage saved = Storage.getLocalStorage();
+        if (saved != null && !player.isEmpty()) {
+            saved.setItem(LAST_PLAYER, player);
+        }
+    }
+
+    private static String lastPlayer() {
+        Storage saved = Storage.getLocalStorage();
+        String name = saved == null ? null : saved.getItem(LAST_PLAYER);
+        return name == null ? "" : name;
+    }
+
     private static void loadCatalogue() {
         fetch("levels/index.txt", body -> {
             for (String line : body.split("\n")) {
@@ -137,9 +204,13 @@ public final class WebGame {
     // ------------------------------------------------------------- progress
 
     /** Stars per level, as "level1=3,level2=1" in local storage. */
+    private static String saveKey() {
+        return SAVE_PREFIX + player.toLowerCase();
+    }
+
     private static int starsOn(String name) {
         Storage saved = Storage.getLocalStorage();
-        String all = saved == null ? null : saved.getItem(SAVE_KEY);
+        String all = saved == null ? null : saved.getItem(saveKey());
         if (all == null) {
             return 0;
         }
@@ -150,6 +221,15 @@ public final class WebGame {
             }
         }
         return 0;
+    }
+
+    /** The greeting on the title screen needs a total before anyone has signed in. */
+    private static int totalStarsFor(String who) {
+        String keep = player;
+        player = who;
+        int total = totalStars();
+        player = keep;
+        return total;
     }
 
     private static int totalStars() {
@@ -175,14 +255,28 @@ public final class WebGame {
                 rebuilt.append(rebuilt.length() > 0 ? "," : "").append(level).append("=").append(best);
             }
         }
-        saved.setItem(SAVE_KEY, rebuilt.toString());
+        saved.setItem(saveKey(), rebuilt.toString());
     }
 
     // --------------------------------------------------------------- layout
 
+    /**
+     * Matches the canvas to the window, and refuses to accept nothing.
+     *
+     * <p>A page that is loaded while hidden — a background tab, a web app
+     * restored but not yet shown — reports an inner size of zero. Taking that
+     * at face value gives a canvas of no size, so the game draws nothing, and
+     * because it only redraws on input it stays blank even once the tab is
+     * looked at. A floor plus a redraw when the page becomes visible is the
+     * difference between that and a game.
+     */
     private static void resize() {
-        canvas.setWidth(Window.current().getInnerWidth());
-        canvas.setHeight(Window.current().getInnerHeight());
+        int w = Math.max(320, Window.current().getInnerWidth());
+        int h = Math.max(240, Window.current().getInnerHeight());
+        if (canvas.getWidth() != w || canvas.getHeight() != h) {
+            canvas.setWidth(w);
+            canvas.setHeight(h);
+        }
     }
 
     private static int width() {
@@ -278,9 +372,11 @@ public final class WebGame {
         g.fillRect(0, 0, width(), height());
         switch (screen) {
             case TITLE -> drawTitle();
+            case NAME -> drawName();
             case CHARACTER -> drawCharacters();
             case LEVELS -> drawLevels();
             case PLAYING -> drawGame();
+            case GOODBYE -> drawGoodbye();
         }
     }
 
@@ -296,24 +392,89 @@ public final class WebGame {
         text("SIGNAL LOST", midX, midY - height() * 0.04, height() * 0.15, TEXT, "center", true);
         text("a fog-of-war stealth game", midX, midY + height() * 0.03,
                 height() * 0.04, DIM, "center", false);
-        int stars = totalStars();
+        int stars = lastPlayer().isEmpty() ? 0 : totalStarsFor(lastPlayer());
         if (stars > 0) {
-            text(stars + " of " + (LEVELS.size() * 3) + " stars", midX, midY + height() * 0.1,
-                    height() * 0.035, ACCENT, "center", false);
+            text("welcome back, " + lastPlayer() + "  ·  " + stars + " stars",
+                    midX, midY + height() * 0.1, height() * 0.035, ACCENT, "center", false);
         }
         double[] start = titleButton();
         box(start[0], start[1], start[2], start[3], start[3] / 2, BUTTON);
         text("START", start[0] + start[2] / 2, start[1] + start[3] * 0.65,
                 start[3] * 0.4, TEXT, "center", true);
+        double[] quit = quitButton();
+        box(quit[0], quit[1], quit[2], quit[3], quit[3] / 2, BUTTON);
+        text("QUIT", quit[0] + quit[2] / 2, quit[1] + quit[3] * 0.65,
+                quit[3] * 0.4, DIM, "center", true);
+    }
+
+    private static void drawName() {
+        drawBack();
+        text("WHO IS PLAYING?", width() / 2.0, height() * 0.3,
+                height() * 0.09, TEXT, "center", true);
+        text("your stars are saved under this name", width() / 2.0, height() * 0.38,
+                height() * 0.04, DIM, "center", false);
+        double[] go = titleButton();
+        box(go[0], go[1], go[2], go[3], go[3] / 2, BUTTON);
+        text("CONTINUE", go[0] + go[2] / 2, go[1] + go[3] * 0.65,
+                go[3] * 0.36, TEXT, "center", true);
+    }
+
+    /**
+     * A browser cannot close its own tab unless a script opened it, so quitting
+     * says goodbye rather than pretending. Installed to a home screen it is the
+     * last thing a player sees before they swipe away.
+     */
+    private static void drawGoodbye() {
+        text("THANKS FOR PLAYING", width() / 2.0, height() * 0.42,
+                height() * 0.1, TEXT, "center", true);
+        if (!player.isEmpty()) {
+            text(player + "  ·  " + totalStars() + " of " + (LEVELS.size() * 3) + " stars",
+                    width() / 2.0, height() * 0.52, height() * 0.045, ACCENT, "center", false);
+        }
+        text("you can close this tab", width() / 2.0, height() * 0.6,
+                height() * 0.035, DIM, "center", false);
+        double[] again = titleButton();
+        box(again[0], again[1], again[2], again[3], again[3] / 2, BUTTON);
+        text("PLAY AGAIN", again[0] + again[2] / 2, again[1] + again[3] * 0.65,
+                again[3] * 0.36, TEXT, "center", true);
+    }
+
+    /** A chevron and nothing else, as on the phone: labels make it a form. */
+    private static double[] backBox() {
+        double size = height() * 0.1;
+        double margin = height() * 0.04;
+        return new double[]{margin, margin, size, size};
+    }
+
+    private static void drawBack() {
+        double[] b = backBox();
+        box(b[0], b[1], b[2], b[3], b[3] * 0.3, BUTTON);
+        g.setStrokeStyle("#" + String.format("%06x", TEXT));
+        g.setLineWidth(Math.max(3, b[3] * 0.09));
+        double cx = b[0] + b[2] / 2;
+        double cy = b[1] + b[3] / 2;
+        double arm = b[3] * 0.2;
+        g.beginPath();
+        g.moveTo(cx + arm * 0.5, cy - arm);
+        g.lineTo(cx - arm * 0.5, cy);
+        g.lineTo(cx + arm * 0.5, cy + arm);
+        g.stroke();
     }
 
     private static double[] titleButton() {
-        double w = Math.min(width() * 0.3, 420);
+        double w = Math.min(width() * 0.24, 360);
         double h = height() * 0.12;
-        return new double[]{(width() - w) / 2, height() * 0.74, w, h};
+        double gap = width() * 0.025;
+        return new double[]{width() / 2.0 - w - gap / 2, height() * 0.74, w, h};
+    }
+
+    private static double[] quitButton() {
+        double[] start = titleButton();
+        return new double[]{start[0] + start[2] + width() * 0.025, start[1], start[2], start[3]};
     }
 
     private static void drawCharacters() {
+        drawBack();
         text("CHOOSE A CHARACTER", width() / 2.0, height() * 0.12,
                 height() * 0.07, TEXT, "center", true);
         Critter[] roster = Critter.values();
@@ -347,6 +508,7 @@ public final class WebGame {
     }
 
     private static void drawLevels() {
+        drawBack();
         text("CHOOSE A LEVEL", width() / 2.0, height() * 0.11,
                 height() * 0.07, TEXT, "center", true);
         text(totalStars() + " of " + (LEVELS.size() * 3) + " stars",
@@ -405,14 +567,13 @@ public final class WebGame {
                         type == TileType.WALL ? (lit ? WALL_SEEN : WALL_GONE)
                                 : (lit ? FLOOR_SEEN : FLOOR_GONE));
                 if (lit && type == TileType.KEY) {
-                    fill(KEY);
-                    g.beginPath();
-                    g.arc(x + t * 0.42, y + t * 0.5, t * 0.14, 0, Math.PI * 2);
-                    g.fill();
-                    g.fillRect(x + t * 0.48, y + t * 0.46, t * 0.26, t * 0.08);
+                    tinted(ObjectPixels.key(), ObjectPixels.KEY_COLOUR,
+                            x + t / 2.0, y + t / 2.0, t * 0.78);
                 } else if (lit && type == TileType.EXIT) {
-                    box(x + t * 0.2, y + t * 0.2, t * 0.6, t * 0.6, t * 0.1,
-                            state.hasAllKeys() ? EXIT_OPEN : EXIT_SHUT);
+                    boolean open = state.hasAllKeys();
+                    tinted(ObjectPixels.exit(open),
+                            open ? ObjectPixels.EXIT_UNLOCKED : ObjectPixels.EXIT_LOCKED,
+                            x + t / 2.0, y + t / 2.0, t * 0.86);
                 }
             }
         }
@@ -437,19 +598,30 @@ public final class WebGame {
             g.beginPath();
             g.arc(gx + t / 2.0, gy + t / 2.0, t * 0.6, 0, Math.PI * 2);
             g.fill();
+            pixels(GuardPixels.shape(), GuardPixels.paletteFor(guard.mode().name()),
+                    gx + t / 2.0, gy + t / 2.0, t * 0.95);
+
+            // The robot is the same whatever the guard is, so the sprite alone
+            // cannot say which one will chase you. Spikes mark a hunter; a ring
+            // marks a sentinel, which never leaves its post.
+            fill(colour);
             if ("Hunter".equals(guard.type())) {
-                fill(colour);
                 g.beginPath();
-                g.moveTo(gx + t * 0.2, gy + t * 0.4);
-                g.lineTo(gx + t * 0.32, gy + t * 0.08);
-                g.lineTo(gx + t * 0.46, gy + t * 0.36);
-                g.lineTo(gx + t * 0.54, gy + t * 0.36);
-                g.lineTo(gx + t * 0.68, gy + t * 0.08);
-                g.lineTo(gx + t * 0.8, gy + t * 0.4);
+                g.moveTo(gx + t * 0.2, gy + t * 0.2);
+                g.lineTo(gx + t * 0.32, gy - t * 0.04);
+                g.lineTo(gx + t * 0.44, gy + t * 0.18);
+                g.lineTo(gx + t * 0.56, gy + t * 0.18);
+                g.lineTo(gx + t * 0.68, gy - t * 0.04);
+                g.lineTo(gx + t * 0.8, gy + t * 0.2);
                 g.closePath();
                 g.fill();
+            } else if ("Sentinel".equals(guard.type())) {
+                g.setStrokeStyle("#" + String.format("%06x", colour));
+                g.setLineWidth(t * 0.06);
+                g.beginPath();
+                g.arc(gx + t / 2.0, gy + t / 2.0, t * 0.52, 0, Math.PI * 2);
+                g.stroke();
             }
-            box(gx + t * 0.16, gy + t * 0.16, t * 0.68, t * 0.68, t * 0.22, colour);
         }
 
         if (hintTurn == state.turnsTaken()) {
@@ -568,7 +740,14 @@ public final class WebGame {
                 right[3] * 0.34, TEXT, "center", true);
     }
 
-    /** The shared 16x16 art, one filled rectangle per pixel. */
+    /**
+     * The shared 16x16 art, one filled rectangle per pixel.
+     *
+     * <p>The desktop does exactly this with a {@code Graphics2D} and the phone
+     * with a {@code Canvas}. All three read the same grids, so the key, the
+     * exit, the guard robot and the six characters are the same drawings
+     * everywhere rather than three sets that look roughly alike.
+     */
     private static void sprite(Critter who, double cx, double cy, double size) {
         String[] rows = CritterPixels.shapeOf(who);
         double step = Math.max(1, Math.floor(size / rows.length));
@@ -586,6 +765,27 @@ public final class WebGame {
         }
     }
 
+    private static void pixels(String[] rows, java.util.Map<Character, Integer> palette,
+                               double cx, double cy, double size) {
+        double step = Math.max(1, Math.floor(size / rows.length));
+        double left = cx - step * rows.length / 2;
+        double top = cy - step * rows.length / 2;
+        for (int row = 0; row < rows.length; row++) {
+            for (int col = 0; col < rows[row].length(); col++) {
+                Integer packed = palette.get(rows[row].charAt(col));
+                if (packed == null) {
+                    continue;
+                }
+                fill(packed);
+                g.fillRect(left + col * step, top + row * step, step + 0.5, step + 0.5);
+            }
+        }
+    }
+
+    private static void tinted(String[] rows, int colour, double cx, double cy, double size) {
+        pixels(rows, ObjectPixels.paletteOf(colour), cx, cy, size);
+    }
+
     // ---------------------------------------------------------------- input
 
     private static boolean inside(double[] box, double x, double y) {
@@ -598,11 +798,31 @@ public final class WebGame {
         switch (screen) {
             case TITLE -> {
                 if (inside(titleButton(), x, y)) {
-                    screen = Screen.CHARACTER;
+                    screen = Screen.NAME;
+                    showNameField();
+                } else if (inside(quitButton(), x, y)) {
+                    screen = Screen.GOODBYE;
+                }
+            }
+            case NAME -> {
+                if (inside(backBox(), x, y)) {
+                    hideNameField();
+                    screen = Screen.TITLE;
+                } else if (inside(titleButton(), x, y)) {
+                    acceptName();
+                    return;
+                }
+            }
+            case GOODBYE -> {
+                if (inside(titleButton(), x, y)) {
+                    screen = Screen.TITLE;
                 }
             }
             case CHARACTER -> {
-                if (inside(titleButton(), x, y)) {
+                if (inside(backBox(), x, y)) {
+                    screen = Screen.NAME;
+                    showNameField();
+                } else if (inside(titleButton(), x, y)) {
                     screen = Screen.LEVELS;
                 } else {
                     Critter[] roster = Critter.values();
@@ -614,6 +834,11 @@ public final class WebGame {
                 }
             }
             case LEVELS -> {
+                if (inside(backBox(), x, y)) {
+                    screen = Screen.CHARACTER;
+                    draw();
+                    return;
+                }
                 for (int i = 0; i < LEVELS.size(); i++) {
                     if (inside(levelBox(i), x, y) && totalStars() >= UNLOCK.get(i)) {
                         startLevel(LEVELS.get(i));

@@ -203,15 +203,10 @@ class BoardView extends View {
             return;
         }
         if (type == TileType.KEY) {
-            paint.setColor(Palette.KEY);
-            drawKey(canvas, bounds, tile);
+            PixelArt.key(canvas, bounds.centerX(), bounds.centerY(), tile * 0.78f);
         } else if (type == TileType.EXIT) {
-            paint.setColor(state.hasAllKeys() ? Palette.EXIT_OPEN : Palette.EXIT_SHUT);
-            float inset = tile * 0.2f;
-            canvas.drawRoundRect(new RectF(bounds.left + inset, bounds.top + inset,
-                    bounds.right - inset, bounds.bottom - inset), tile * 0.1f, tile * 0.1f, paint);
-            paint.setColor(Palette.BACKDROP);
-            canvas.drawCircle(bounds.centerX() + tile * 0.1f, bounds.centerY(), tile * 0.05f, paint);
+            PixelArt.exit(canvas, state.hasAllKeys(),
+                    bounds.centerX(), bounds.centerY(), tile * 0.86f);
         }
     }
 
@@ -268,40 +263,28 @@ class BoardView extends View {
             canvas.drawCircle(cx, cy, tile * 0.6f, paint);
             paint.setColor(colour);
 
-            switch (guard.type()) {
-                case "Hunter" -> {
-                    Path spikes = new Path();
-                    spikes.moveTo(cx - tile * 0.3f, cy - tile * 0.1f);
-                    spikes.lineTo(cx - tile * 0.18f, cy - tile * 0.42f);
-                    spikes.lineTo(cx - tile * 0.04f, cy - tile * 0.14f);
-                    spikes.lineTo(cx + tile * 0.04f, cy - tile * 0.14f);
-                    spikes.lineTo(cx + tile * 0.18f, cy - tile * 0.42f);
-                    spikes.lineTo(cx + tile * 0.3f, cy - tile * 0.1f);
-                    spikes.close();
-                    canvas.drawPath(spikes, paint);
-                    float inset = tile * 0.14f;
-                    canvas.drawRoundRect(new RectF(bounds.left + inset, bounds.top + inset,
-                            bounds.right - inset, bounds.bottom - inset),
-                            tile * 0.14f, tile * 0.14f, paint);
-                }
-                case "Sentinel" -> {
-                    canvas.drawCircle(cx, cy, tile * 0.3f, paint);
-                    paint.setColor(Palette.BACKDROP);
-                    canvas.drawCircle(cx, cy, tile * 0.14f, paint);
-                    paint.setColor(colour);
-                }
-                default -> {
-                    float inset = tile * 0.16f;
-                    canvas.drawRoundRect(new RectF(bounds.left + inset, bounds.top + inset,
-                            bounds.right - inset, bounds.bottom - inset),
-                            tile * 0.26f, tile * 0.26f, paint);
-                }
-            }
+            PixelArt.guard(canvas, guard.mode().name(), cx, cy, tile * 0.95f);
 
-            if (!"Sentinel".equals(guard.type())) {
-                paint.setColor(Palette.BACKDROP);
-                canvas.drawCircle(cx - tile * 0.09f, cy + tile * 0.02f, tile * 0.055f, paint);
-                canvas.drawCircle(cx + tile * 0.09f, cy + tile * 0.02f, tile * 0.055f, paint);
+            // The robot sprite is the same for every guard type, as on the
+            // desktop, so the one thing it cannot say is which of them will
+            // chase you. A hunter gets spikes above it; a sentinel a ring,
+            // since it never leaves its post.
+            paint.setColor(colour);
+            if ("Hunter".equals(guard.type())) {
+                Path spikes = new Path();
+                spikes.moveTo(cx - tile * 0.3f, cy - tile * 0.3f);
+                spikes.lineTo(cx - tile * 0.18f, cy - tile * 0.54f);
+                spikes.lineTo(cx - tile * 0.06f, cy - tile * 0.32f);
+                spikes.lineTo(cx + tile * 0.06f, cy - tile * 0.32f);
+                spikes.lineTo(cx + tile * 0.18f, cy - tile * 0.54f);
+                spikes.lineTo(cx + tile * 0.3f, cy - tile * 0.3f);
+                spikes.close();
+                canvas.drawPath(spikes, paint);
+            } else if ("Sentinel".equals(guard.type())) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(tile * 0.06f);
+                canvas.drawCircle(cx, cy, tile * 0.52f, paint);
+                paint.setStyle(Paint.Style.FILL);
             }
         }
     }
@@ -331,9 +314,9 @@ class BoardView extends View {
     private void drawPlayer(Canvas canvas) {
         int tile = tileSize();
         RectF bounds = tileAt(state.player());
-        paint.setColor(Palette.withAlpha(CritterSprite.colourOf(critter), 45));
+        paint.setColor(Palette.withAlpha(PixelArt.colourOf(critter), 45));
         canvas.drawCircle(bounds.centerX(), bounds.centerY(), tile * 0.7f, paint);
-        CritterSprite.paint(canvas, critter, bounds.centerX(), bounds.centerY(), tile * 0.95f);
+        PixelArt.critter(canvas, critter, bounds.centerX(), bounds.centerY(), tile * 0.95f);
     }
 
     // --------------------------------------------------------- header, footer
@@ -348,7 +331,7 @@ class BoardView extends View {
         float pad = getWidth() * 0.02f;
         float baseline = bottom * 0.66f;
 
-        CritterSprite.paint(canvas, critter, pad + bottom * 0.3f, bottom * 0.5f, bottom * 0.62f);
+        PixelArt.critter(canvas, critter, pad + bottom * 0.3f, bottom * 0.5f, bottom * 0.62f);
 
         paint.setColor(Palette.TEXT);
         paint.setFakeBoldText(true);

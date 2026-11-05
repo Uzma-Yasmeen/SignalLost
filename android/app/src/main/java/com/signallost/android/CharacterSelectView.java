@@ -58,7 +58,7 @@ class CharacterSelectView extends View {
         RectF play = playButton();
         paint.setColor(Palette.BUTTON);
         canvas.drawRoundRect(play, play.height() / 2, play.height() / 2, paint);
-        paint.setColor(CritterSprite.colourOf(chosen));
+        paint.setColor(PixelArt.colourOf(chosen));
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(3);
         canvas.drawRoundRect(play, play.height() / 2, play.height() / 2, paint);
@@ -101,19 +101,19 @@ class CharacterSelectView extends View {
         canvas.drawRoundRect(card, radius, radius, paint);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(picked ? 5 : 2);
-        paint.setColor(picked ? CritterSprite.colourOf(critter) : Palette.BUTTON_EDGE);
+        paint.setColor(picked ? PixelArt.colourOf(critter) : Palette.BUTTON_EDGE);
         canvas.drawRoundRect(card, radius, radius, paint);
         paint.setStyle(Paint.Style.FILL);
 
         // A glow in the character's own colour, so the chosen one is obvious
         // without a tick or a border doing all the work.
         if (picked) {
-            paint.setColor(Palette.withAlpha(CritterSprite.colourOf(critter), 34));
+            paint.setColor(Palette.withAlpha(PixelArt.colourOf(critter), 34));
             canvas.drawCircle(card.centerX(), card.top + card.height() * 0.36f,
                     card.width() * 0.44f, paint);
         }
 
-        CritterSprite.paint(canvas, critter, card.centerX(),
+        PixelArt.critter(canvas, critter, card.centerX(),
                 card.top + card.height() * 0.36f, card.width() * 0.68f);
 
         paint.setTextAlign(Paint.Align.CENTER);

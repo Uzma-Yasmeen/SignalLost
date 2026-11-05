@@ -22,11 +22,19 @@
   canvas { display: block; touch-action: manipulation; }
   #loading { position: fixed; inset: 0; display: grid; place-items: center;
              color: #8c96af; font: 16px system-ui, sans-serif; }
+  /* The name screen borrows the browser's own input, so phones get a real
+     keyboard rather than one drawn on a canvas. */
+  #name { position: fixed; left: 50%; top: 46%; transform: translateX(-50%);
+          width: min(60vw, 420px); padding: 14px 18px; font: 20px system-ui, sans-serif;
+          text-align: center; color: #e8ecf6; background: #141824;
+          border: 1px solid #3a4664; border-radius: 14px; outline: none; }
 </style>
 </head>
 <body>
   <div id="loading">loading…</div>
   <canvas id="board"></canvas>
+  <input id="name" type="text" maxlength="40" placeholder="name"
+         autocomplete="off" autocapitalize="words" style="display:none">
   <script src="signal-lost.js"></script>
   <script>
     document.getElementById('loading').remove();
