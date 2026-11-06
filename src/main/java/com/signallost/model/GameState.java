@@ -256,9 +256,9 @@ public final class GameState {
         // who is about to be caught making it.
         Position goal = hintSeeksCover()
                 ? nearestCover(watched)
-                : (hasAllKeys() ? exit : nearestKey());
+                : (hasAllKeys() ? exit : nearestKey(watched));
         if (goal == null) {
-            goal = hasAllKeys() ? exit : nearestKey();
+            goal = hasAllKeys() ? exit : nearestKey(watched);
         }
         if (goal == null) {
             return List.of();
@@ -281,22 +281,57 @@ public final class GameState {
      * different at a glance.
      */
     public boolean hintSeeksCover() {
-        return isPlayerWatched();
+        return isPlayerWatched() || isHunterClosing();
     }
 
     /**
-     * The uncollected key closest to the player, by straight-line step count.
+     * Whether a hunter is actively chasing and near enough to matter.
      *
-     * <p>Nearest rather than first-in-the-file, so a hint sends the player to
-     * the key in front of them rather than back across the level.
+     * <p>Being seen is not the only moment the advice should change. A hunter
+     * that has lost sight of the player for a turn is still coming, and still
+     * knows roughly where they are — and while it was out of view the hint
+     * reverted to "the key is this way", which walked the player back into it.
+     * The one piece of advice worth a hint while something is hunting you is
+     * where to go to stop being caught.
      */
-    private Position nearestKey() {
+    private boolean isHunterClosing() {
+        for (Guard guard : guards) {
+            if (guard.mode() == GuardMode.HUNT
+                    && guard.position().manhattanDistanceTo(player) <= NEAR_HUNTER_REACH) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The uncollected key the player can reach soonest, by the route the hint
+     * would actually draw.
+     *
+     * <p>This used to measure straight-line distance, which knows nothing about
+     * walls. In a building made of walls that is a guess, and on nine of the
+     * ten levels it guessed wrong somewhere: on level 5 it would aim at a key
+     * 27 steps further away than the one behind the player, and on level 10,
+     * 56. A player who spends one of three hints and is pointed into a dead end
+     * does not conclude the level is clever.
+     *
+     * <p>Measuring with the same cost function the route uses also means the
+     * choice and the arrow agree: the key chosen is the one that is cheapest to
+     * walk to <em>while avoiding guards</em>, not merely the closest as the
+     * crow flies through a wall.
+     */
+    private Position nearestKey(Set<Position> watched) {
         Position nearest = null;
         int best = Integer.MAX_VALUE;
         for (Position tile : map.findAll(TileType.KEY)) {
-            int distance = tile.manhattanDistanceTo(player);
-            if (distance < best) {
-                best = distance;
+            List<Position> route =
+                    AStarPathfinder.findPath(map, player, tile, step -> hintCost(step, watched));
+            if (route.isEmpty()) {
+                continue;
+            }
+            int steps = route.size();
+            if (steps < best) {
+                best = steps;
                 nearest = tile;
             }
         }
@@ -316,9 +351,17 @@ public final class GameState {
         frontier.add(player);
         seen.add(player);
 
+        // Out of sight is not far enough while something is hunting. The tile
+        // the player is already standing on is often unwatched the turn after a
+        // hunter loses them, and calling that cover made the hint point at
+        // their own feet and then say nothing at all.
+        int hunterRoom = closestHunterDistance();
+
         while (!frontier.isEmpty()) {
             Position current = frontier.remove();
-            if (!watched.contains(current) && !isGuardOn(current)) {
+            boolean clearOfHunters = hunterRoom < 0
+                    || distanceToClosestHunter(current) > hunterRoom;
+            if (!watched.contains(current) && !isGuardOn(current) && clearOfHunters) {
                 return current;
             }
             for (Position neighbour : map.walkableNeighbours(current)) {
@@ -328,6 +371,26 @@ public final class GameState {
             }
         }
         return null;
+    }
+
+    /** How far the nearest hunting guard is from the player, or -1 if none is. */
+    private int closestHunterDistance() {
+        return distanceToClosestHunter(player);
+    }
+
+    /** How far the nearest hunting guard is from a tile, or -1 if none is hunting. */
+    private int distanceToClosestHunter(Position tile) {
+        int best = -1;
+        for (Guard guard : guards) {
+            if (guard.mode() != GuardMode.HUNT) {
+                continue;
+            }
+            int distance = guard.position().manhattanDistanceTo(tile);
+            if (best < 0 || distance < best) {
+                best = distance;
+            }
+        }
+        return best;
     }
 
     /** True when some guard is standing on this tile. */

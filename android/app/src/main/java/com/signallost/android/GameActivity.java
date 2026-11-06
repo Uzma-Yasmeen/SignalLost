@@ -66,12 +66,12 @@ public class GameActivity extends Activity {
     private void showTitle() {
         board = null;
         int levels = LevelCatalog.load().size();
-        boolean returning = profile != null && profile.totalStars() > 0;
-        String greeting = returning ? "Welcome back, " + profile.name().toUpperCase() : null;
-        String tally = returning
-                ? profile.totalStars() + " of " + (levels * Score.MAX_STARS) + " stars collected"
-                : null;
-        show(new TitleView(this, greeting, tally, levels, this::showNameEntry, this::finish));
+        // No name and no star count here. This screen is shown before anybody
+        // has said who they are, so whatever it showed belonged to whoever
+        // played last — on a phone handed round, somebody else entirely. Your
+        // stars appear once you have given your name, on the level select.
+        show(new TitleView(this, "Your stars are saved under your name", null, levels,
+                this::showNameEntry, this::finish));
     }
 
     private void showNameEntry() {

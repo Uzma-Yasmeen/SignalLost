@@ -6,6 +6,7 @@ import com.signallost.art.GuardPixels;
 import com.signallost.art.ObjectPixels;
 import com.signallost.guard.Guard;
 import com.signallost.guard.GuardMode;
+import com.signallost.level.BoardScale;
 import com.signallost.level.Level;
 import com.signallost.level.LevelLoader;
 import com.signallost.model.Direction;
@@ -334,20 +335,19 @@ public final class WebGame {
     private static final int SMALLEST_USEFUL_TILE = 34;
 
     /**
-     * How big one tile is drawn.
+     * How big one tile is drawn — the same on every level.
      *
-     * <p>Fit the whole board when it fits, and only zoom in past that when
-     * fitting it would make the tiles too small to tap. The floor used to be a
-     * fraction of the screen instead, which meant a big window demanded big
-     * tiles: on a laptop it forced a tile half again larger than the board
-     * needed, so a level that fitted comfortably was pushed off the edges and
-     * the camera had to chase the player around it. A phone is unaffected,
-     * because there the fitted size really is below the floor.
+     * <p>Calibrated to a reference board, not to the level being played and not
+     * to the largest level that ships. Per level meant the character shrank on
+     * reaching level 5, the first board taller than the four before it; to the
+     * largest meant every level drawn at the size the biggest one needs, which
+     * shrinks levels 1 to 4 to fix level 5. Boards larger than the reference
+     * scroll, and the camera follows.
      */
     private static int tile() {
-        GameMap map = state.map();
         double usable = footerTop() - headerBottom();
-        double fitted = Math.min(width() / (double) map.cols(), usable / map.rows());
+        double fitted = Math.min(width() / (double) BoardScale.COLS_THAT_FIT,
+                usable / BoardScale.ROWS_THAT_FIT);
         return (int) Math.max(fitted, SMALLEST_USEFUL_TILE);
     }
 
@@ -511,13 +511,14 @@ public final class WebGame {
             sprite(cast[i], castX + i * (size + gap), top + unit * 0.4, size);
         }
 
-        String back = lastPlayer();
-        if (!back.isEmpty()) {
-            text("Welcome back, " + back.toUpperCase(),
-                    midX, top + unit * 0.52, unit * 0.042, TEXT, "center", true);
-            text(totalStarsFor(back) + " of " + (LEVELS.size() * 3) + " stars collected",
-                    midX, top + unit * 0.565, unit * 0.036, KEY, "center", false);
-        }
+        // No name and no star count here. This screen is shown before anybody
+        // has said who they are, so whatever it showed belonged to whoever
+        // played last — on a shared phone, somebody else. Players read it as
+        // the game having already decided they were that person. Your stars
+        // appear once you have given your name, on the level select, where
+        // they are yours.
+        text("Your stars are saved under your name", midX, top + unit * 0.54,
+                unit * 0.034, DIM, "center", false);
 
         double[] start = startButton();
         box(start[0], start[1], start[2], start[3], start[3] / 2, BUTTON);
@@ -838,10 +839,21 @@ public final class WebGame {
         drawReadings();
 
         String[] labels = {"UNDO", "HINT " + state.hintsLeft(), "RESTART", "LEVELS"};
+        String[] keys = {"U", "H", "R", "ESC"};
+        boolean usable = state != null && !verdictShowing();
         for (int i = 0; i < labels.length; i++) {
             double[] b = footerButton(i);
             box(b[0], b[1], b[2], b[3], b[3] * 0.3, BUTTON);
-            text(labels[i], b[0] + b[2] / 2, b[1] + b[3] * 0.65, b[3] * 0.38, TEXT, "center", false);
+            boolean live = usable && switch (i) {
+                case UNDO_CONTROL -> state.canUndo();
+                case HINT_CONTROL -> state.canSpendHint();
+                default -> true;
+            };
+            text(labels[i], b[0] + b[2] / 2, b[1] + b[3] * 0.6, b[3] * 0.34,
+                    live ? TEXT : EDGE, "center", false);
+            // The key that does the same thing. A laptop player who never
+            // discovers these is clicking their way through a keyboard game.
+            text(keys[i], b[0] + b[2] / 2, b[1] + b[3] * 0.93, b[3] * 0.2, DIM, "center", false);
         }
     }
 
@@ -1044,9 +1056,18 @@ public final class WebGame {
                 || state.hasFailed() || state.isCaught());
     }
 
+    /**
+     * The card shown when an attempt ends.
+     *
+     * <p>Capped rather than a flat half of the screen. At half the width and
+     * half the height it was a slab that buried the board behind it, and the
+     * board is the thing the player wants to look at while reading "caught" —
+     * where the hunter came from is the lesson. It only has to hold two short
+     * lines and two buttons.
+     */
     private static double[] verdictBanner() {
-        double w = Math.min(width() * 0.5, 760);
-        double h = height() * 0.5;
+        double w = Math.min(width() * 0.46, 460);
+        double h = Math.min(height() * 0.46, 236);
         return new double[]{(width() - w) / 2, (height() - h) / 2, w, h};
     }
 
@@ -1084,15 +1105,15 @@ public final class WebGame {
 
         String headline = escaped ? "ESCAPED"
                 : state.isRunOver() ? "RUN OVER" : caught ? "CAUGHT" : "OUT OF TURNS";
-        text(headline, b[0] + b[2] / 2, b[1] + b[3] * 0.3, b[3] * 0.19,
-                escaped ? EXIT_OPEN : DANGER, "center", true);
+        fitted(headline, b[0] + b[2] / 2, b[1] + b[3] * 0.33, b[3] * 0.22, b[2] * 0.84,
+                escaped ? EXIT_OPEN : DANGER, true);
 
         String detail = escaped
                 ? state.score().stars() + " of 3 stars   ·   " + state.score().turns()
                         + " turns, par " + state.score().par()
                 : caught ? "a hunter reached you   ·   " + state.livesLeft() + " lives left"
                         : "better luck next time";
-        text(detail, b[0] + b[2] / 2, b[1] + b[3] * 0.48, b[3] * 0.085, DIM, "center", false);
+        fitted(detail, b[0] + b[2] / 2, b[1] + b[3] * 0.52, b[3] * 0.1, b[2] * 0.88, DIM, false);
 
         double[] left = verdictButton(true);
         double[] right = verdictButton(false);
@@ -1233,16 +1254,11 @@ public final class WebGame {
             return;
         }
         if (y >= footerTop()) {
-            if (inside(footerButton(0), x, y)) {
-                state.undoLastMove();
-            } else if (inside(footerButton(1), x, y)) {
-                if (hintTurn != state.turnsTaken() && state.spendHint()) {
-                    hintTurn = state.turnsTaken();
+            for (int i = 0; i < 4; i++) {
+                if (inside(footerButton(i), x, y)) {
+                    controlAction(i);
+                    break;
                 }
-            } else if (inside(footerButton(2), x, y)) {
-                startLevel(levelName);
-            } else if (inside(footerButton(3), x, y)) {
-                screen = Screen.LEVELS;
             }
             return;
         }
@@ -1294,9 +1310,44 @@ public final class WebGame {
                 record(levelName, state.score().stars());
             }
             draw();
-        } else if ("u".equals(event.getKey())) {
-            state.undoLastMove();
+            return;
+        }
+
+        // Every control also has a key, because most people playing this in a
+        // browser are at a laptop. Four buttons you can only reach with a
+        // mouse, on a game played entirely from the keyboard, is a phone
+        // layout someone forgot to finish for the desktop.
+        int control = switch (event.getKey()) {
+            case "u", "U" -> UNDO_CONTROL;
+            case "h", "H" -> HINT_CONTROL;
+            case "r", "R" -> RESTART_CONTROL;
+            case "Escape" -> LEVELS_CONTROL;
+            default -> -1;
+        };
+        if (control >= 0) {
+            event.preventDefault();
+            controlAction(control);
             draw();
+        }
+    }
+
+    private static final int UNDO_CONTROL = 0;
+    private static final int HINT_CONTROL = 1;
+    private static final int RESTART_CONTROL = 2;
+    private static final int LEVELS_CONTROL = 3;
+
+    /** What a control does, whether it was clicked, tapped or typed. */
+    private static void controlAction(int control) {
+        switch (control) {
+            case UNDO_CONTROL -> state.undoLastMove();
+            case HINT_CONTROL -> {
+                if (hintTurn != state.turnsTaken() && state.spendHint()) {
+                    hintTurn = state.turnsTaken();
+                }
+            }
+            case RESTART_CONTROL -> startLevel(levelName);
+            case LEVELS_CONTROL -> screen = Screen.LEVELS;
+            default -> { }
         }
     }
 }

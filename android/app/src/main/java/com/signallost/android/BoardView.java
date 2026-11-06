@@ -3,6 +3,7 @@ package com.signallost.android;
 import com.signallost.art.Critter;
 import com.signallost.guard.Guard;
 import com.signallost.guard.GuardMode;
+import com.signallost.level.BoardScale;
 import com.signallost.level.Level;
 import com.signallost.level.LevelLoader;
 import com.signallost.model.Direction;
@@ -112,12 +113,21 @@ class BoardView extends View {
      * sounds: most of a level is unexplored or remembered, and what matters is
      * nearly always within a few tiles of where you are standing.
      */
+    /**
+     * How big one tile is drawn — the same on every level.
+     *
+     * <p>Calibrated to a reference board, not to the level being played and not
+     * to the largest level that ships. Per level meant the character shrank on
+     * reaching level 5, the first board taller than the four before it; to the
+     * largest meant every level drawn at the size the biggest one needs, which
+     * shrinks levels 1 to 4 to fix level 5. Boards larger than the reference
+     * scroll, and the camera follows.
+     */
     private int tileSize() {
-        GameMap map = state.map();
         float usableHeight = footerTop() - headerBottom();
-        float fitted = Math.min(getWidth() / (float) map.cols(), usableHeight / map.rows());
-        float readable = usableHeight / 11f;
-        return (int) Math.max(fitted, readable);
+        float fitted = Math.min(getWidth() / (float) BoardScale.COLS_THAT_FIT,
+                usableHeight / BoardScale.ROWS_THAT_FIT);
+        return (int) Math.max(fitted, usableHeight / 11f);
     }
 
     /**
