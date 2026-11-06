@@ -16,3 +16,15 @@ android/local.properties
 
 # Assembled web build
 web/dist/
+
+# Coursework deliverables. The game is public; the university submission is not.
+# These stay on disk and are simply not pushed.
+docs/Signal-Lost-Project-Report.docx
+docs/Signal-Lost-Project-Report.pdf
+docs/report.md
+docs/srs.md
+docs/uml.md
+docs/build-report.py
+docs/render-diagrams.js
+docs/diagram-server.py
+docs/diagrams/
