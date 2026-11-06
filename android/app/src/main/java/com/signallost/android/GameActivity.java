@@ -81,7 +81,7 @@ public class GameActivity extends Activity {
         // pre-filled name was quietly signed in as the last one and handed
         // their stars. On a phone passed between friends that is the normal
         // case, and the title screen already greets the returning player.
-        show(new NameView(this, signedInThisRun, chosen -> {
+        show(new NameView(this, signedInThisRun, store.allProfiles(), chosen -> {
             signedInThisRun = chosen;
             profile = store.loadFor(chosen);
             showCharacterSelect();

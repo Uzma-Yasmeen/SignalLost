@@ -6,6 +6,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Properties;
 
 /**
@@ -95,6 +98,35 @@ public final class ProgressStore {
             saved.setProperty(base + ".sightings", String.valueOf(result.sightings()));
         }
         write(saved);
+    }
+
+    /**
+     * Everyone who has played on this device, most stars first.
+     *
+     * <p>Asking a returning player to retype their name exactly is a worse trap
+     * than it sounds: get one letter wrong and the game opens a new, empty
+     * profile rather than saying the name is unknown, so a player who had
+     * reached level 6 comes back to level 1 with their stars still sitting in
+     * this file under a spelling they cannot reproduce. Offering the saved
+     * names means nothing has to be remembered, and because the player picks
+     * one deliberately, nobody is signed in as somebody else either.
+     */
+    public List<PlayerProfile> allProfiles() {
+        Properties saved = read();
+        List<PlayerProfile> profiles = new ArrayList<>();
+        for (String property : saved.stringPropertyNames()) {
+            if (!property.startsWith(PREFIX) || !property.endsWith(NAME_SUFFIX)) {
+                continue;
+            }
+            String key = property.substring(PREFIX.length(),
+                    property.length() - NAME_SUFFIX.length());
+            PlayerProfile profile = profileFrom(saved, key);
+            if (profile != null) {
+                profiles.add(profile);
+            }
+        }
+        profiles.sort(Comparator.comparingInt(PlayerProfile::totalStars).reversed());
+        return profiles;
     }
 
     // ------------------------------------------------------------- internals

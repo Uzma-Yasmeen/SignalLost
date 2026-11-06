@@ -255,6 +255,50 @@ public final class WebGame {
         return total;
     }
 
+    /**
+     * Everyone who has played on this device, best first.
+     *
+     * <p>The name box used to arrive pre-filled with whoever played last, which
+     * quietly signed a new player in as them. Emptying it fixed that and broke
+     * the opposite case: a returning player now has to retype their name
+     * exactly, and a single different letter silently opens a brand new profile
+     * with no stars rather than saying "no such player". Somebody who had
+     * reached level 6 came back the next day to level 1, with their progress
+     * sitting safely in storage under a name they could not quite reproduce.
+     *
+     * <p>Offering the saved names to pick from solves both: nothing is adopted
+     * without being chosen, and nothing has to be spelled from memory.
+     */
+    private static List<String> savedPlayers() {
+        Storage saved = Storage.getLocalStorage();
+        List<String> names = new ArrayList<>();
+        if (saved == null) {
+            return names;
+        }
+        for (int i = 0; i < saved.getLength(); i++) {
+            String key = saved.key(i);
+            if (key != null && key.startsWith(SAVE_PREFIX)) {
+                String who = key.substring(SAVE_PREFIX.length());
+                if (!who.isEmpty() && totalStarsFor(who) > 0) {
+                    names.add(who);
+                }
+            }
+        }
+        names.sort((a, b) -> totalStarsFor(b) - totalStarsFor(a));
+        return names;
+    }
+
+    /** Up to this many returning players are offered; beyond that, type it. */
+    private static final int PLAYERS_OFFERED = 4;
+
+    private static double[] playerChip(int index, int count) {
+        double w = Math.min(width() * 0.2, 240);
+        double h = height() * 0.09;
+        double gap = width() * 0.012;
+        double left = (width() - (w * count + gap * (count - 1))) / 2;
+        return new double[]{left + index * (w + gap), height() * 0.595, w, h};
+    }
+
     private static int totalStars() {
         int total = 0;
         for (String name : LEVELS) {
@@ -599,6 +643,26 @@ public final class WebGame {
             text("your stars are saved under this name", width() / 2.0, height() * 0.38,
                     height() * 0.04, DIM, "center", false);
         }
+        List<String> returning = savedPlayers();
+        if (!returning.isEmpty()) {
+            int count = Math.min(returning.size(), PLAYERS_OFFERED);
+            text("or carry on as", width() / 2.0, height() * 0.555,
+                    height() * 0.032, DIM, "center", false);
+            for (int i = 0; i < count; i++) {
+                String who = returning.get(i);
+                double[] chip = playerChip(i, count);
+                box(chip[0], chip[1], chip[2], chip[3], chip[3] / 2, BUTTON);
+                strokeAlpha(EDGE, 1);
+                g.setLineWidth(2);
+                roundPath(chip[0], chip[1], chip[2], chip[3], chip[3] / 2);
+                g.stroke();
+                fitted(who.toUpperCase(), chip[0] + chip[2] / 2, chip[1] + chip[3] * 0.46,
+                        chip[3] * 0.34, chip[2] * 0.84, TEXT, true);
+                fitted(totalStarsFor(who) + " stars", chip[0] + chip[2] / 2,
+                        chip[1] + chip[3] * 0.82, chip[3] * 0.26, chip[2] * 0.84, KEY, false);
+            }
+        }
+
         double[] go = titleButton();
         box(go[0], go[1], go[2], go[3], go[3] / 2, BUTTON);
         text("CONTINUE", go[0] + go[2] / 2, go[1] + go[3] * 0.65,
@@ -1255,6 +1319,18 @@ public final class WebGame {
                 } else if (inside(titleButton(), x, y)) {
                     acceptName();
                     return;
+                } else {
+                    // Picking a saved player is deliberate, so it carries none
+                    // of the risk that pre-filling the box did.
+                    List<String> returning = savedPlayers();
+                    int count = Math.min(returning.size(), PLAYERS_OFFERED);
+                    for (int i = 0; i < count; i++) {
+                        if (inside(playerChip(i, count), x, y)) {
+                            nameField.setValue(returning.get(i));
+                            acceptName();
+                            return;
+                        }
+                    }
                 }
             }
             case GOODBYE -> {

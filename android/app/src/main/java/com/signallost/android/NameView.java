@@ -1,5 +1,7 @@
 package com.signallost.android;
 
+import com.signallost.progress.PlayerProfile;
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
@@ -14,6 +16,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -30,8 +33,8 @@ import java.util.function.Consumer;
 @SuppressLint("ViewConstructor")
 class NameView extends LinearLayout {
 
-    NameView(Context context, String current, Consumer<String> onChosen,
-             Runnable onBack) {
+    NameView(Context context, String current, List<PlayerProfile> returning,
+             Consumer<String> onChosen, Runnable onBack) {
         super(context);
         setOrientation(VERTICAL);
         setGravity(Gravity.CENTER);
@@ -107,6 +110,49 @@ class NameView extends LinearLayout {
             hideKeyboard(field);
             onBack.run();
         });
+
+        // Everyone who has played on this phone, to pick rather than retype.
+        // Spelling your own name differently by one letter used to open a new
+        // empty profile instead of saying the name was unknown, so a player who
+        // had reached level 6 came back the next day to level 1 with their
+        // stars still on the device under a spelling they could not reproduce.
+        if (!returning.isEmpty()) {
+            TextView orPick = new TextView(context);
+            orPick.setText("or carry on as");
+            orPick.setTextColor(Palette.TEXT_DIM);
+            orPick.setTextSize(13);
+            orPick.setGravity(Gravity.CENTER);
+            LayoutParams label = new LayoutParams(LayoutParams.MATCH_PARENT,
+                    LayoutParams.WRAP_CONTENT);
+            label.topMargin = pad;
+            addView(orPick, label);
+
+            LinearLayout row = new LinearLayout(context);
+            row.setOrientation(HORIZONTAL);
+            row.setGravity(Gravity.CENTER);
+            for (PlayerProfile profile : returning.subList(0, Math.min(returning.size(), 3))) {
+                Button pick = new Button(context);
+                pick.setText(profile.name().toUpperCase()
+                        + System.lineSeparator() + profile.totalStars() + " stars");
+                pick.setTextColor(Palette.TEXT);
+                pick.setAllCaps(false);
+                pick.setTextSize(13);
+                pick.setBackground(rounded(Palette.BUTTON));
+                LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(
+                        0, LayoutParams.WRAP_CONTENT, 1f);
+                size.leftMargin = pad / 4;
+                size.rightMargin = pad / 4;
+                row.addView(pick, size);
+                pick.setOnClickListener(v -> {
+                    hideKeyboard(field);
+                    onChosen.accept(profile.name());
+                });
+            }
+            LayoutParams rowSize = new LayoutParams(LayoutParams.MATCH_PARENT,
+                    LayoutParams.WRAP_CONTENT);
+            rowSize.topMargin = pad / 3;
+            addView(row, rowSize);
+        }
 
         go.setOnClickListener(v -> submit.run());
         field.setOnEditorActionListener((v, actionId, event) -> {
