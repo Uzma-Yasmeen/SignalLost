@@ -39,8 +39,28 @@
   <script>
     document.getElementById('loading').remove();
     main();
+
+    // A service worker updates the NEXT time the app is opened: the code in a
+    // window that is already running was parsed into memory when it opened, and
+    // a new worker governs future requests, not the running program. A phone
+    // kills background apps often enough that this goes unnoticed; a desktop
+    // window left open for days quietly keeps playing an old build, which is
+    // exactly what happened to us.
+    //
+    // So the page says when a newer version has arrived, and the game applies
+    // it at the title screen, where nothing is in progress.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        // Fires once the replacement worker has taken over this page.
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.__signalLostUpdateReady = true;
+        });
+        // A window open for hours would otherwise not re-check for a day.
+        setInterval(() => reg.update().catch(() => {}), 10 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) { reg.update().catch(() => {}); }
+        });
+      }).catch(() => {});
     }
   </script>
 </body>

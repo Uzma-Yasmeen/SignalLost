@@ -17,6 +17,7 @@ import com.signallost.model.Score;
 import com.signallost.model.TileType;
 import com.signallost.vision.TileVisibility;
 
+import org.teavm.jso.JSBody;
 import org.teavm.jso.ajax.XMLHttpRequest;
 import org.teavm.jso.browser.Storage;
 import org.teavm.jso.browser.Window;
@@ -579,6 +580,36 @@ public final class WebGame {
         }
     }
 
+    /**
+     * Whether a newer build has arrived since this window opened.
+     *
+     * <p>Set by the page when the replacement service worker takes over. See
+     * the comment in index.html for why an open window does not update itself.
+     */
+    @JSBody(script = "return !!window.__signalLostUpdateReady;")
+    private static native boolean updateReady();
+
+    /** Applied once per window; the flag it reads is cleared by the reload. */
+    private static boolean updating;
+
+    /**
+     * Takes a waiting update, at the title screen and nowhere else.
+     *
+     * <p>The title is the one place where nothing is held in memory that the
+     * player would mind losing: stars are written to storage the moment a level
+     * is finished, so a reload here costs a frame and nothing else. Doing it
+     * mid-level would throw away the attempt they were in.
+     */
+    private static void applyUpdateAtTitle() {
+        if (updating || !updateReady()) {
+            return;
+        }
+        updating = true;
+        text("updating to the latest version", width() / 2.0, height() * 0.95,
+                Math.min(height(), width() * 0.9) * 0.03, DIM, "center", false);
+        Window.setTimeout(() -> Window.current().getLocation().reload(), 400);
+    }
+
     private static void drawTitle() {
         double midX = width() / 2.0;
         // The block is centred as one piece, so a wide window does not strand
@@ -626,6 +657,7 @@ public final class WebGame {
         box(start[0], start[1], start[2], start[3], start[3] / 2, BUTTON);
         text("START", start[0] + start[2] / 2, start[1] + start[3] * 0.65,
                 start[3] * 0.4, TEXT, "center", true);
+        applyUpdateAtTitle();
         double[] quit = quitButton();
         box(quit[0], quit[1], quit[2], quit[3], quit[3] / 2, BUTTON);
         text("QUIT", quit[0] + quit[2] / 2, quit[1] + quit[3] * 0.65,
