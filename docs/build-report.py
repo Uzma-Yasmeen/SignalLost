@@ -32,12 +32,14 @@ MAIN_PT = 16          # main headings, centred
 SUB_PT = 14           # subheadings, left
 BODY_PT = 12          # body, justified
 TABLE_PT = 10.5       # tables need to fit the page
-PAGE_WIDTH_IN = 6.27        # A4 portrait, less one-inch margins
-PORTRAIT_MAX_W = 6.27
-PORTRAIT_MAX_H = 5.4        # leaves room for the text that explains it
+PAGE_WIDTH_IN = 6.67        # A4 portrait, less the margins below
+PORTRAIT_MAX_W = 6.67
+PORTRAIT_MAX_H = 4.5        # leaves room for the text that explains it
 FULL_PAGE_H = 8.9           # a tall diagram on a page of its own
 ROTATED_MAX_H = 8.6         # a turned figure uses the page's height
 MIN_LABEL_PT = 6.0          # below this a printed diagram is unreadable
+SCREENSHOT_MAX_W = 5.0      # two screenshots to a page, with their captions
+SCREENSHOT_MAX_H = 3.3
 
 # Title page, from the template. Each entry is (text, size, bold, space_after).
 TITLE_PAGE = [
@@ -100,7 +102,7 @@ def add_inline(paragraph, text, size=BODY_PT, bold=False):
 
 
 def body(doc, text, size=BODY_PT, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
-         space_after=8, indent=0.0, italic_all=False):
+         space_after=6, indent=0.0, italic_all=False):
     p = doc.add_paragraph()
     p.alignment = align
     p.paragraph_format.space_after = Pt(space_after)
@@ -118,7 +120,7 @@ def heading(doc, text, level):
     p = doc.add_paragraph()
     if level == 2:
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        size, before, after = MAIN_PT, 18, 12
+        size, before, after = MAIN_PT, 0, 14
     else:
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         size, before, after = SUB_PT, 14, 8
@@ -173,6 +175,22 @@ def add_image(doc, path: Path, caption: str | None = None):
     logical_w = px_w / 2                       # exported at 2x
     aspect = px_w / px_h
 
+    # A screenshot is a photograph of the screen, not a diagram of labelled
+    # boxes: it stays readable at half the page and two then sit on one sheet
+    # instead of one each. That is four sheets saved across the section, which
+    # on a thermally bound report is four sheets the student pays for.
+    if path.parent.name == "screens":
+        width = min(SCREENSHOT_MAX_W, SCREENSHOT_MAX_H * aspect)
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
+        p.add_run().add_picture(str(path), width=Inches(width))
+        if caption:
+            body(doc, caption, size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER,
+                 space_after=10, italic_all=True)
+        return
+
     width = min(PORTRAIT_MAX_W, PORTRAIT_MAX_H * aspect)
     drawn = path
 
@@ -221,7 +239,7 @@ def build(out_path: Path):
     section = doc.sections[0]
     section.page_width, section.page_height = Inches(8.27), Inches(11.69)   # A4
     for margin in ("top_margin", "bottom_margin", "left_margin", "right_margin"):
-        setattr(section, margin, Inches(1))
+        setattr(section, margin, Inches(0.8))
 
     normal = doc.styles["Normal"]
     normal.font.name = FONT
@@ -241,10 +259,12 @@ def build(out_path: Path):
     lines = REPORT.read_text(encoding="utf-8").splitlines()
     for line in lines:
         if re.match(r"^## \d", line):
-            body(doc, line[3:], size=12.5, align=WD_ALIGN_PARAGRAPH.LEFT, space_after=4)
+            body(doc, line[3:], size=12, align=WD_ALIGN_PARAGRAPH.LEFT, space_after=1)
         elif re.match(r"^### \d", line):
-            body(doc, line[4:], size=12, align=WD_ALIGN_PARAGRAPH.LEFT,
-                 space_after=3, indent=0.35)
+            # The index has to sit on one page. Six lines spilling onto a second
+            # sheet is a wasted page and reads as a mistake.
+            body(doc, line[4:], size=11.5, align=WD_ALIGN_PARAGRAPH.LEFT,
+                 space_after=0, indent=0.35)
     doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
     # -------------------------------------------------------------- content
@@ -280,6 +300,10 @@ def build(out_path: Path):
         if m:
             flush()
             level = len(m.group(1))
+            # Every numbered section starts a fresh page. That is the
+            # convention for a report of this kind, and it is not negotiable
+            # against page count: the length was brought down by shortening the
+            # writing and the figures instead.
             if level == 2 and not first_section:
                 doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
             first_section = False

@@ -36,13 +36,16 @@ guards and levels.
 
 The completed system has ten levels, six playable characters, three lives per
 run, a limited hint system, a star rating based on turns taken and times seen,
-and saved progress for each player. It is verified by 230 automated tests in 26
-test classes, with a further 18 covering the leaderboard service described in
-Section 7.7. These include an architectural test that fails the build if the
-game rules ever refer to the user interface, and a fairness test that checks
-every level can be completed. Level difficulty was calibrated using an
-exhaustive breadth-first search of the game tree, which confirmed that a winning
-route exists on every level.
+and saved progress for each player. It runs on four front ends — desktop,
+browser, installable web app and Android — over one shared rules core. It is
+verified by 260 automated tests in 31 test classes, with a further 18 covering
+the leaderboard service described in Section 7.7. These include an architectural
+test that fails the build if the game rules ever refer to the user interface,
+a reachability test that proves every key and exit can be walked to on all ten
+levels, and a fairness test that proves cover is always within reach of a
+hunter. Full winnability against moving guards was established by exhaustive
+search of the game tree for level 1; Section 6.4 explains why that search does
+not scale to the later levels and what was done instead.
 
 **Keywords:** fog of war, breadth-first search, A* pathfinding, design patterns,
 layered architecture, automated testing.
@@ -87,8 +90,8 @@ answered directly.
    independence automatically.
 5. Verify behaviour by automated tests covering visibility, pathfinding, undo,
    detection, capture, scoring and saved progress.
-6. Verify playability by exhaustive search, confirming that every level can be
-   completed and that its star ratings can be achieved.
+6. Verify playability as far as it can be verified: reachability on every
+   level, and exhaustive search of the game tree where the state space allows.
 7. Deliver a complete, playable game rather than a technical demonstration.
 
 ### 2.3 Scope
@@ -276,11 +279,11 @@ rules behave correctly, which is a much weaker claim.
 
 | Problem | Solution in Signal Lost | Enforced by |
 | --- | --- | --- |
-| Logic cannot be tested without the UI | All game logic is in six packages that reference no user-interface type | `ArchitectureTest` |
+| Logic cannot be tested without the UI | All game logic is in seven packages that reference no user-interface type | `ArchitectureTest` |
 | Behaviour is not reproducible | A discrete, deterministic turn model with no dependence on elapsed time | `TurnWithGuardsTest` |
 | Patterns are obscured by the frame loop | Command, Strategy, State, Observer and Factory, each an identifiable set of classes | Section 5.3 |
 | Ray casting leaks through corners | Visibility as breadth-first traversal of the grid graph | `VisibilityServiceTest` |
-| Playability is only claimed | Exhaustive search of the game tree proves a winning route exists | `LevelIntegrityTest` |
+| Playability is only claimed | Every key and the exit are proved reachable on all ten levels, and the game tree is searched exhaustively where it is small enough | `LevelIntegrityTest`, `StarRatingAchievableTest` |
 | Difficulty thresholds may be unreachable | Star thresholds derived from level geometry and checked attainable | `StarRatingAchievableTest` |
 
 The main advantages are that the rules can be tested in isolation, that a
@@ -345,8 +348,6 @@ can be missed.
 
 #### 5.3.2 Guards: the three types and their shared state
 
-![Guards: the three types](diagrams/5.3.2-guards-the-three-types-and-their-shared-state.png)
-
 Every guard is the same thing from outside: something with a position, a mode
 and a set of tiles it can see. `GuardState` is an immutable record holding that
 whole condition. A guard does not change itself; it calculates a new state and
@@ -361,8 +362,6 @@ guard type was added.
 
 #### 5.3.2.1 Guards: Strategy and Observer
 
-![Guards: Strategy and Observer](diagrams/5.3.2.1-guards-strategy-and-observer.png)
-
 Three patterns meet at the guard. `GuardMode` is the State and decides which
 behaviour applies. `GuardBehaviour` is the Strategy, with four stateless
 implementations selected by that mode. `AlarmListener` is the Observer, through
@@ -370,8 +369,6 @@ which one guard's sighting reaches every other guard without any of them holding
 a reference to the others.
 
 #### 5.3.3 Vision, levels and progress
-
-![Vision, levels and progress](diagrams/5.3.3-vision-levels-and-progress.png)
 
 `VisibilityService` is stateless and calculates what is visible from a position.
 `FogOfWar` adds memory, classifying each tile as `VISIBLE`, `REMEMBERED` or
@@ -395,8 +392,6 @@ therefore no guarantee, because a guard may turn a corner and be looking at it
 by the time the turn ends.
 
 #### 5.4.2 Undoing a turn
-
-![Undoing a turn](diagrams/5.4.2-undoing-a-turn.png)
 
 Undo pops the turn and reverses its parts in the opposite order: the alarm
 first, then each guard, then the player. Nothing is recalculated; everything is
@@ -429,16 +424,21 @@ which made the level unwinnable.
 
 ### 5.7 Deployment View
 
-![One set of rules, three consumers](diagrams/5.7-deployment-view-one-set-of-rules-three-consumers.png)
+The seven rule packages are compiled once and used by four programs that share
+no other code: the desktop game, a browser build compiled to JavaScript, an
+Android app, and a server that scores submitted runs. None of them holds a copy
+of the rules, and nothing in the rules knows that any of them exist.
 
-The six rule packages are compiled once and used by three programs that share
-no other code: the desktop game, a server that scores submitted runs, and an
-Android app. None of the three holds a copy of the rules, and nothing in the
-rules knows that any of them exist.
+| Program | Front end | How it loads levels | Where progress goes |
+| --- | --- | --- | --- |
+| Desktop | Swing | classpath resources | file in the user's home |
+| Browser / installable app | HTML canvas | fetched over the network | browser local storage |
+| Android | `View` and `Canvas` | classpath resources | the app's private directory |
+| Leaderboard service | none | classpath resources | PostgreSQL |
 
 This is the architecture of Section 5.1 taken to its conclusion. The dependency
 rule was stated there as a constraint and enforced by a test; here it is what
-makes two further programs possible without touching the first.
+makes three further programs possible without touching the first.
 
 ---
 
@@ -514,6 +514,25 @@ reported winnable levels as lost.
 That last point is worth noting. A verification tool is software too, and is no
 more trustworthy than the software it checks until it has itself been checked.
 
+The search does not extend to the whole game. Pruning every branch in which the
+player is seen is what keeps it tractable, and that pruning is exactly what a
+proof of general winnability may not do, because being seen is a setback rather
+than a loss. Removing it was attempted and the search exhausted a three-gigabyte
+heap before reaching a verdict: the reachable state space of a fifteen-row level
+with three guards, each carrying its own position, facing and mode, is far
+larger than level 1's. What is proved for every level is therefore weaker and
+honestly stated — that each key and the exit are reachable on the static map
+(`LevelIntegrityTest`), that cover always lies within reach of a hunter
+(`LevelFairnessTest`), and that a first move exists which ends unseen
+(`StarRatingAchievableTest`).
+
+A cheaper substitute was written in its place. `HintAutopilotTest` plays each
+level by following the hint every turn, which is not a proof of winnability but
+is a strong check on the advice: it asserts on all ten levels that every
+suggestion is a move the game will accept and that the advice never paces
+between two tiles. Both assertions failed when first written, and Section 7.9
+describes the three faults they exposed.
+
 ---
 
 ## 7. Implementation
@@ -528,15 +547,16 @@ more trustworthy than the software it checks until it has itself been checked.
 | `level` | 258 | Level and catalogue loading from text |
 | `pathfinding` | 213 | A* search and route metrics |
 | `vision` | 189 | Visibility and fog memory |
-| **Rules total** | **2,951** | **No user-interface dependency** |
+| **Rules total** | **3,705** | **No user-interface dependency** |
 
-The three front ends built on those rules, none of which the rules know about:
+The four programs built on those rules, none of which the rules know about:
 
 | Module | Lines | Responsibility |
 | --- | --- | --- |
-| `ui` | 3,263 | Swing front end for the desktop |
-| `server` | 762 | Spring Boot leaderboard (Section 7.7) |
-| `android` | 377 | Android front end (Section 7.8) |
+| `ui` | 3,039 | Swing front end for the desktop |
+| `android` | 1,958 | Android front end (Section 7.7) |
+| `web` | 1,519 | Browser and installable web app (Section 7.6) |
+| `server` | 762 | Spring Boot leaderboard (Section 7.8) |
 
 ### 7.2 Fog of war
 
@@ -596,123 +616,34 @@ sprite. The same shape data therefore produces a ginger cat and a pink rabbit.
 Artwork lives in the repository as readable text and can be reviewed like any
 other source.
 
-### 7.6 Output Screenshots
+### 7.6 The browser build and the installable web app
 
-The images below are renders of the running game, produced by a tool that drives
-the real game with A* rather than scripted keystrokes, so they cannot fall out
-of step with the build.
+The rules were compiled to JavaScript with TeaVM and given a canvas front end,
+so the same Java that runs on the desktop runs in a browser. Two things differ
+and both are handled at the edge rather than by changing a rule. A browser has
+no classpath, so levels arrive over the network and are parsed by
+`LevelLoader.parseLevel` instead of its resource loader; and it has no
+filesystem, so progress is kept in local storage rather than a properties file.
+The same decision Android made when it handed `ProgressStore` a different
+directory, taken one step further.
 
-![Title screen](screens/13-title.png)
-**Figure 7.1 — Title screen.** The game opens here, and greets a returning
-player by name with the stars they have collected so far.
+A web application manifest and a service worker turn the page into something a
+player can add to a home screen and open offline. This matters for reach rather
+than polish: Apple does not permit an Android package to be installed, so a
+browser is the only way the game reaches an iPhone at all.
 
-![Entering a name](screens/08-name.png)
-**Figure 7.2 — Entering a name.** Progress is stored against the name given
-here, so several people can play on one machine without overwriting each other.
+The service worker is also where the sharpest deployment lesson of the project
+came from. Its first version cached under a fixed name, which meant the worker
+file was byte-identical on every deployment. A browser decides whether to
+install a replacement worker by comparing that file against the one it holds, so
+no replacement was ever installed, and every player who had opened the site once
+was served that first build permanently. The fix is that the build stamps a hash
+of everything it is about to cache into the worker, so a changed game guarantees
+a changed worker, and the page and game code are now fetched network-first with
+the cache as the offline fallback. A caching layer that cannot be updated is not
+a cache; it is a copy nobody can replace.
 
-![Level selection](screens/09-level-select.png)
-**Figure 7.3 — Level selection.** Levels unlock against accumulated stars, and
-each box shows the best rating achieved on it.
-
-![Part way through](screens/02-explored.png)
-**Figure 7.4 — Fog of war.** Bright tiles are currently visible, dim tiles are
-remembered terrain, and black is unexplored.
-
-![Spotted](screens/03-spotted.png)
-**Figure 7.5 — Spotted.** The guard's line of sight is drawn in red, the alarm
-is raised, and a hunter begins moving towards the sighting.
-
-![A hint](screens/04-hint.png)
-**Figure 7.6 — A hint.** One suggested move, shown for a single turn, routed to
-avoid being seen rather than to be shortest.
-
-![Escaped](screens/07-escaped.png)
-**Figure 7.7 — Escaped.** The rating screen, showing turns taken against par and
-the stars awarded.
-
-![Developer reveal](screens/05-dev-reveal.png)
-**Figure 7.8 — Developer reveal.** The whole map with every guard shown, used to
-check guard behaviour against expectation.
-
----
-
-### 7.7 The leaderboard service
-
-A Spring Boot and PostgreSQL service that records completed runs and serves a
-leaderboard. It is 762 lines across 15 files, and it depends on the game.
-
-**The problem it solves.** A leaderboard that accepts a score has to believe
-whatever the client sends, and the client runs on the player's machine. A
-request saying `{"stars": 3}` is a claim, not a fact. The usual defences —
-obfuscating the client, embedding a signing key, checking a score for
-plausibility — make forgery inconvenient rather than impossible, because the
-number still originates somewhere the player controls.
-
-**What it does instead.** The service accepts no score. A submission carries the
-player's name, the level, and the sequence of moves they made, one letter per
-turn:
-
-```json
-{"playerName": "Uzma", "levelName": "level1",
- "moves": "DUDUDUDUDDDDDDDDRRRRUUUURRRRUUUURRRRDDDDDDDD"}
-```
-
-The server loads that level, replays those moves through the same `GameState`
-the game uses, and computes the result itself:
-
-```json
-{"id": 1, "playerName": "Uzma", "levelName": "level1",
- "stars": 2, "turns": 44, "par": 69, "sightings": 33}
-```
-
-Every number in the response was produced on the server. Claiming three stars
-requires submitting a sequence of moves that earns three stars, which is to say
-playing the level. A shorter sequence that does not reach the exit is refused:
-
-```json
-{"error": "run rejected",
- "reason": "The run ends without reaching the exit after 4 moves"}
-```
-
-**Why it is possible here and not generally.** Two properties of the game, both
-enforced by tests in its own build. The rules carry no user interface (NFR-2),
-so they can run inside a web request. And the game is deterministic (NFR-4), so
-replaying the same moves from the same start reaches the same end — without
-that, a legitimate run would verify differently on the server than it played on
-the client. Neither property was added for this purpose; the service is what
-they turned out to be worth.
-
-**The schema.** Two tables, and the decision worth defending is in the second:
-every run is stored, not only a player's best. Keeping a best-score column means
-keeping it correct on every write and discarding the history. "Best" is a
-question to ask the data, so the leaderboard is a query — a window function that
-numbers each player's runs from their best and keeps the first. Written as
-native SQL, since window functions are not JPQL, and the same statement runs on
-both PostgreSQL and the in-memory database the tests use.
-
-| Table | Columns |
-| --- | --- |
-| `player` | id, display_name (unique), first_seen |
-| `run` | id, player_id, level_name, **moves**, stars, turns, par, sightings, submitted_at |
-
-`moves` is kept because it is the only part the client authored, and because a
-stored run can be re-verified later or replayed for a spectator.
-
-**Endpoints.** `POST /api/runs` to submit, `GET /api/leaderboard/{level}` for
-each player's best, `GET /api/players/{name}/runs` for a history, and
-`GET /api/levels`, which reads the game's own catalogue so the server and the
-game cannot disagree about what exists. A malformed request is 400; a run that
-is well formed but not a winning run is 422.
-
-**Verification.** 18 tests. The verifier is tested from both ends — that a
-genuine run is accepted and scored exactly as the game scores it, and that
-short, malformed, over-long and impossible submissions are refused. The API
-tests run over real HTTP against a real database, including that a refused run
-leaves nothing behind, not even a player row. The tests find a winning run by
-searching for one rather than hard-coding a sequence, which would stop being
-valid the first time a level was redrawn.
-
-### 7.8 The Android build
+### 7.7 The Android build
 
 A second interface onto the same game, 377 lines in two classes.
 
@@ -724,7 +655,7 @@ srcDirs = ['src/main/java', '../../src/main/java']
 exclude 'com/signallost/ui/**'
 ```
 
-The resulting 56 KB APK contains 35 rules classes across all six packages, all
+The resulting 56 KB APK contains the rules classes across all seven packages, all
 ten level files, three Android classes, and **no user-interface class from the
 desktop build**. Not one line of the rules was changed to produce it.
 
@@ -741,19 +672,107 @@ supplies `getFilesDir()` where the desktop supplies the home directory.
 
 ---
 
-## 8. Conclusion
+### 7.8 The leaderboard service
 
-### 8.1 Summary
+A Spring Boot and PostgreSQL service that records completed runs and serves a
+leaderboard, 762 lines across 15 files, verified by 18 tests. It is built but
+not deployed; Section 9.4 explains why.
+
+**The problem it solves.** A leaderboard that accepts a score has to believe
+whatever the client sends, and the client runs on the player's machine. A
+request saying `{"stars": 3}` is a claim, not a fact. Obfuscating the client or
+checking a score for plausibility makes forgery inconvenient rather than
+impossible, because the number still originates somewhere the player controls.
+
+**What it does instead.** The service accepts no score. A submission carries the
+player's name, the level, and the sequence of moves made, one letter per turn:
+
+```json
+{"playerName": "Uzma", "levelName": "level1",
+ "moves": "DUDUDUDUDDDDDDDDRRRRUUUURRRRUUUURRRRDDDDDDDD"}
+```
+
+The server loads the level, replays those moves through the same `GameState`
+the game uses, and scores the result itself. A forged run must be a sequence of
+moves that genuinely survives the guards, which is indistinguishable from
+playing the level. This works only because the rules are deterministic and free
+of the user interface, so the server can run them with no screen attached — the
+architectural constraint of Section 5.1 turning out to buy something that was
+never the reason for it.
+
+### 7.9 What playtesting found
+
+The game was given to players outside the development, and what they reported
+could not have been found by the test suite as it stood.
+
+The hint chose which key to walk towards by straight-line distance, which knows
+nothing about walls. Measured across every standable tile of every level it was
+wrong on nine of the ten: on level 5 the first hint a player spends points 23
+steps away from the key they could actually reach, and on level 10 the gap
+reaches 56. Players reported this as "the hints are not proper" and as being
+unable to finish level 5, and both were the same defect. It now measures along
+the route it would actually draw. It also treated a guard as expensive ground
+rather than a closed door, while `movePlayer` refuses to walk into one, so when
+a guard stood in the only corridor the suggested move was one the game would
+not accept.
+
+A life was deducted when the player acknowledged a capture rather than when the
+capture happened, so the banner announcing it still counted the life just lost,
+and a player caught for the first time was told they had three left. The
+existing test asserted this under the name "unspent until claimed", a reminder
+that a test records a decision rather than validating it.
+
+What these have in common is that they live in the seam between the rules and
+the interface, which is the one place the architecture deliberately keeps the
+test suite out of. The rules were correct in every case. What was wrong was the
+advice given about them, and the moment a consequence was applied.
+
+## 8. Output Screenshots
+
+The images below are renders of the desktop build, produced by a tool that
+drives the real game with A* rather than scripted keystrokes, so they cannot
+fall out of step with the code.
+
+![Title screen](screens/13-title.png)
+**Figure 8.1 — Title screen.** The game opens here, and greets a returning
+player by name with the stars they have collected so far.
+
+![Level selection](screens/09-level-select.png)
+**Figure 8.2 — Level selection.** Levels unlock against accumulated stars, and
+each box shows the best rating achieved on it.
+
+![Part way through](screens/02-explored.png)
+**Figure 8.3 — Fog of war.** Bright tiles are currently visible, dim tiles are
+remembered terrain, and black is unexplored.
+
+![Spotted](screens/03-spotted.png)
+**Figure 8.4 — Spotted.** The guard's line of sight is drawn in red, the alarm
+is raised, and a hunter begins moving towards the sighting.
+
+![A hint](screens/04-hint.png)
+**Figure 8.5 — A hint.** One suggested move, shown for a single turn, routed to
+avoid being seen rather than to be shortest.
+
+![Escaped](screens/07-escaped.png)
+**Figure 8.6 — Escaped.** The rating screen, showing turns taken against par and
+the stars awarded.
+
+---
+
+## 9. Conclusion
+
+### 9.1 Summary
 
 Signal Lost was delivered as a complete, playable turn-based stealth game in
 Java, with ten levels, six characters, three guard types, exact undo, a limited
-hint system, star-based scoring and saved progress. The rules are 2,951 lines
-across six packages and are verified by 230 automated tests in 26 test classes,
+hint system, star-based scoring and saved progress. The rules are 3,705 lines
+across seven packages and are verified by 260 automated tests in 31 test classes,
 with 18 more covering the leaderboard service: 248 in all.
 
-A leaderboard service and an Android build were added afterwards, both reusing
-the rules without modification, so the same compiled logic now runs in three
-programs: a desktop game, a server, and a phone.
+A browser build, an Android build and a leaderboard service were added
+afterwards, all three reusing the rules without modification, so the same
+compiled logic now runs in four programs: a desktop game, a web page that
+installs to a home screen, a phone app, and a server.
 
 All seven objectives in Section 2.2 were met. Fog of war is a bounded
 breadth-first flood fill, pursuit uses A* with a Manhattan heuristic and a
@@ -762,22 +781,21 @@ weight, the separation of rules from interface is enforced by a test, behaviour
 is verified by testing, playability is verified by search, and the result is a
 finished game.
 
-### 8.2 What the project demonstrates
+### 9.2 What the project demonstrates
 
 An architectural rule that nothing enforces will not survive. The separation
 between rules and interface is the project's most useful property, and also one
-that a single convenient import would quietly destroy. Writing a test that fails
-the build on such an import turns an intention into a guarantee.
+that a single convenient import would quietly destroy. A test that fails the
+build on such an import turns an intention into a guarantee.
 
-Passing tests and a working game are different claims. The project's most
-instructive fault was a level that could not be won while every test passed,
-because the tests checked that each rule behaved correctly and nothing checked
-that the game built from those rules could be finished.
+Passing tests and a working game are different claims. The most instructive
+fault was a level that could not be won while every test passed, because the
+tests checked that each rule behaved correctly and nothing checked that the
+game built from those rules could be finished. Tools need checking too: the
+solver written to validate the levels was itself wrong twice, each time
+reporting winnable levels as unwinnable.
 
-Tools need checking too. The solver written to validate the levels was itself
-wrong twice, each time reporting winnable levels as unwinnable.
-
-### 8.3 Limitations
+### 9.3 Limitations
 
 - The sentinel guard is implemented and tested but appears in no level. Placed
   in level 5, its six-tile cone covered fifteen of the sixteen walkable tiles in
@@ -794,7 +812,7 @@ wrong twice, each time reporting winnable levels as unwinnable.
 - Automated testing of the interface covers navigation and key bindings only;
   nothing checks what is drawn.
 
-### 8.4 Future work
+### 9.4 Future work
 
 | Term | Work |
 | --- | --- |
@@ -805,7 +823,7 @@ wrong twice, each time reporting winnable levels as unwinnable.
 
 ---
 
-## 9. References
+## 10. References
 
 1. Hart, P. E., Nilsson, N. J. and Raphael, B. (1968). "A Formal Basis for the
    Heuristic Determination of Minimum Cost Paths." *IEEE Transactions on Systems
