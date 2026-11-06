@@ -82,6 +82,13 @@ final class TurnCommand implements Command {
                 .anyMatch(guard -> guard.mode() == GuardMode.HUNT
                         && guard.position().equals(state.player));
 
+        if (state.caught) {
+            // The cost lands now, so the banner that says "caught" can also say
+            // how many lives are actually left. Undo cannot reach this turn:
+            // undoLastMove refuses once the attempt is over.
+            state.loseALife();
+        }
+
         state.spotted = state.caught || state.isPlayerWatched();
         if (state.spotted) {
             state.sightings++;

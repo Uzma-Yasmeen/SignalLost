@@ -1,7 +1,6 @@
 package com.signallost;
 
 import com.signallost.level.Level;
-import com.signallost.level.LevelCatalog;
 import com.signallost.level.LevelLoader;
 import com.signallost.model.Direction;
 import com.signallost.model.GameState;
@@ -11,6 +10,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -18,87 +18,147 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Plays each level by doing exactly what the hint says, every turn.
  *
- * <p>Two questions at once, both of which a player asked.
- *
- * <p>The first is whether the level can be finished at all. A player reported
- * trying level 5 ten times without getting out, and nothing in the suite could
- * say whether they were unlucky or right. Escaping here does not prove a level
- * is fair, but it does prove it is possible, and it proves it constructively —
- * there is a sequence of moves, and this is it.
- *
- * <p>The second is whether the hint is worth spending. Following the arrow is
- * what a player does with it, so if following it every turn walks into a wall,
- * a guard, or a loop, the hint is not advice. It used to choose its key by
- * straight-line distance, so on level 5 the very first hint pointed 23 steps
- * away from the key you could actually reach.
- *
- * <p>The hint is deliberately omniscient, so this is an easier game than a
- * player's. That is the point: it is a floor, not a benchmark.
- *
- * <p><b>Currently failing on all ten levels, deliberately left in.</b> It was
- * written to answer a player's report and it answered it, finding three faults
- * that nothing else in the suite can see:
+ * <p>Written to answer a player's report that level 5 could not be finished
+ * and that the hints were no help. It found three faults nothing else in the
+ * suite could see, all now fixed and each guarded below:
  *
  * <ul>
- *   <li>On levels 3, 7, 9 and 10 the hint points at a tile the game then
- *       refuses to move onto — it routes through something unwalkable.</li>
- *   <li>On level 1 it never reaches the exit in 150 turns without being caught
- *       once, which means it is walking in a circle.</li>
- *   <li>On levels 2, 4, 5, 6 and 8 it runs out of lives. Some of that is this
- *       test being a worse player than a human — it never waits and never
- *       doubles back — but not all of it.</li>
+ *   <li>The hint pointed at tiles the game then refused to move onto. It
+ *       treated a guard as expensive ground rather than a closed door, so when
+ *       one stood in the only corridor the route went straight through it.</li>
+ *   <li>When that route failed it returned nothing at all, so the hint went
+ *       blank — having charged the player one of only three.</li>
+ *   <li>It alternated between advancing on the key and retreating out of
+ *       sight, because "cover" meant the nearest safe tile, which is almost
+ *       always the tile just left. On level 1 that was a hundred and fifty
+ *       turns of pacing without ever reaching the exit.</li>
  * </ul>
  *
- * <p>Disabled rather than deleted because the findings are the point, and
- * deleting it would lose the only check that asks whether a level can be
- * finished at all. Enable it as each fault is fixed.
+ * <p>The hint is deliberately omniscient, so an autopilot following it plays an
+ * easier game than a person. It is still a worse player than a person, because
+ * it never waits for a patrol to pass and never doubles back. That is why
+ * finishing the level is a separate, disabled expectation: the checks below are
+ * about whether the advice is sound, which is the hint's job, not whether a
+ * greedy robot can win with it.
  */
-@Disabled("Documents three real hint faults; see the class comment. Enable as they are fixed.")
 class HintAutopilotTest {
 
+    /** Long enough to meet patrols repeatedly, short enough to stay quick. */
+    private static final int TURNS_WATCHED = 120;
+
+    @ParameterizedTest(name = "{0}: every hint is a move the game allows")
+    @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5",
+                            "level6", "level7", "level8", "level9", "level10"})
+    void everyHintIsALegalMove(String name) {
+        GameState state = build(name);
+
+        for (int turn = 0; turn < TURNS_WATCHED && !state.hasEscaped(); turn++) {
+            if (state.isAttemptOver()) {
+                if (!state.beginNextLife()) {
+                    return;
+                }
+                continue;
+            }
+            List<Position> route = state.hintRoute(1);
+            assertTrue(!route.isEmpty(),
+                    name + ": the hint went blank on turn " + turn + " at " + state.player()
+                            + ". A hint that says nothing has still cost one of three.");
+
+            Position to = route.get(0);
+            Direction step = towards(state.player(), to);
+            assertTrue(step != null,
+                    name + ": the hint pointed at " + to + " from " + state.player()
+                            + ", which is not one step.");
+            assertTrue(state.movePlayer(step),
+                    name + ": the game refused the hint's own move, " + step + " from "
+                            + state.player() + " to " + to + ". The hint is routing through"
+                            + " something that cannot be walked on — a guard blocks like a wall.");
+        }
+    }
+
+    @ParameterizedTest(name = "{0}: the hint does not pace back and forth")
+    @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5",
+                            "level6", "level7", "level8", "level9", "level10"})
+    void theHintDoesNotOscillate(String name) {
+        GameState state = build(name);
+        List<Position> visited = new ArrayList<>();
+
+        for (int turn = 0; turn < TURNS_WATCHED && !state.hasEscaped(); turn++) {
+            if (state.isAttemptOver()) {
+                if (!state.beginNextLife()) {
+                    break;
+                }
+                visited.clear();
+                continue;
+            }
+            List<Position> route = state.hintRoute(1);
+            if (route.isEmpty()) {
+                break;
+            }
+            visited.add(state.player());
+            Direction step = towards(state.player(), route.get(0));
+            if (step == null || !state.movePlayer(step)) {
+                break;
+            }
+        }
+
+        // A B A B A B is the shape the old "nearest cover" produced: advance
+        // into view, retreat out of it, repeat until the clock runs out.
+        int longestPacing = 0;
+        int run = 0;
+        for (int i = 2; i < visited.size(); i++) {
+            if (visited.get(i).equals(visited.get(i - 2))
+                    && !visited.get(i).equals(visited.get(i - 1))) {
+                run++;
+                longestPacing = Math.max(longestPacing, run);
+            } else {
+                run = 0;
+            }
+        }
+        assertTrue(longestPacing < 6,
+                name + ": the hint paced between two tiles " + (longestPacing + 2)
+                        + " turns running. Following it goes nowhere.");
+    }
+
+    /**
+     * The whole level, start to exit, on hints alone.
+     *
+     * <p>Disabled: this is a greedy robot that never waits for a patrol to pass
+     * and never doubles back, so it dies on levels a person would finish. It is
+     * kept because it is the only check that asks whether a level can be
+     * completed at all, and because if it ever passes it has produced a
+     * constructive proof — an actual sequence of moves — for every level.
+     */
+    @Disabled("The autopilot plays worse than a person; see the class comment.")
     @ParameterizedTest(name = "{0}: following the hint gets you out")
     @ValueSource(strings = {"level1", "level2", "level3", "level4", "level5",
                             "level6", "level7", "level8", "level9", "level10"})
     void followingTheHintFinishesTheLevel(String name) {
         Level level = LevelLoader.loadFromResource(name);
-        GameState state = new GameState(level.map(), level.guards(), 5, level.turnLimit());
+        GameState state = build(name);
 
         int turns = 0;
-        int captures = 0;
         while (!state.hasEscaped() && turns < level.turnLimit()) {
-            if (state.isCaught()) {
-                // A capture costs a life and puts you back at the start. The
-                // hint's job is to get out, not to get out unscathed.
-                captures++;
+            if (state.isAttemptOver()) {
                 assertTrue(state.beginNextLife(),
-                        name + ": caught with no lives left after " + turns + " turns, following"
-                                + " the hint every single turn");
+                        name + ": out of lives after " + turns + " turns on hints alone");
                 continue;
             }
-
             List<Position> route = state.hintRoute(1);
-            assertTrue(!route.isEmpty(),
-                    name + ": the hint had nothing to say on turn " + turns + ", standing at "
-                            + state.player() + ". A hint that gives up is not advice.");
-
-            Direction step = towards(state.player(), route.get(0));
-            assertTrue(step != null,
-                    name + ": the hint pointed at " + route.get(0) + " from " + state.player()
-                            + ", which is not a single step away.");
-            assertTrue(state.movePlayer(step),
-                    name + ": the hint pointed at " + route.get(0) + " from " + state.player()
-                            + ", and the game refused the move. The hint is routing through"
-                            + " something you cannot walk on.");
+            Direction step = route.isEmpty() ? null : towards(state.player(), route.get(0));
+            assertTrue(step != null && state.movePlayer(step),
+                    name + ": the hint stopped being usable on turn " + turns);
             turns++;
         }
-
-        assertTrue(state.hasEscaped(),
-                name + ": following the hint for all " + turns + " turns never reached the exit"
-                        + " (" + captures + " captures along the way). Either the level cannot be"
-                        + " finished, or the hint cannot finish it.");
+        assertTrue(state.hasEscaped(), name + ": never reached the exit in " + turns + " turns");
     }
 
-    /** The single step from one tile to an adjacent one, or null if not adjacent. */
+    private static GameState build(String name) {
+        Level level = LevelLoader.loadFromResource(name);
+        return new GameState(level.map(), level.guards(), 5, level.turnLimit());
+    }
+
+    /** The single step from one tile to an adjacent one, or waiting in place. */
     private static Direction towards(Position from, Position to) {
         int down = to.row() - from.row();
         int right = to.col() - from.col();

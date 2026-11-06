@@ -100,9 +100,17 @@ class HintCoverTest {
             }
             Position step = hint.get(0);
             assertTrue(map.isWalkable(step), step + " is not walkable");
-            assertTrue(step.manhattanDistanceTo(state.player()) == 1,
-                    step + " is not next to the player");
-            state.movePlayer(towards(state.player(), step));
+
+            // The player's own tile is the hint saying "wait". That is a legal
+            // move and often the right one — when a guard blocks the only
+            // corridor, standing still until it moves on beats every
+            // alternative. The hint used to return nothing at all in that
+            // situation, which looks like a bug and costs the player one of
+            // only three hints for silence.
+            boolean waitHere = step.equals(state.player());
+            assertTrue(waitHere || step.manhattanDistanceTo(state.player()) == 1,
+                    step + " is neither the player's own tile nor next to it");
+            state.movePlayer(waitHere ? Direction.WAIT : towards(state.player(), step));
         }
     }
 

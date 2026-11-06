@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.PriorityQueue;
+import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 
 /**
@@ -69,7 +70,24 @@ public final class AStarPathfinder {
      */
     public static List<Position> findPath(GameMap map, Position start, Position goal,
                                           ToIntFunction<Position> extraCost) {
-        if (!map.isWalkable(start) || !map.isWalkable(goal)) {
+        return findPath(map, start, goal, extraCost, tile -> true);
+    }
+
+    /**
+     * The same search again, but where some tiles cannot be walked on at all.
+     *
+     * <p>A high cost is not the same as a closed door. The hint used to say
+     * guards were merely expensive, so when a guard stood in the only corridor
+     * the route went straight through it — and the game then refused the move,
+     * because walking into a guard is not a move. The player spent a hint and
+     * the arrow pointed at something they could not do.
+     *
+     * @param passable false for tiles the route may not cross
+     */
+    public static List<Position> findPath(GameMap map, Position start, Position goal,
+                                          ToIntFunction<Position> extraCost,
+                                          Predicate<Position> passable) {
+        if (!map.isWalkable(start) || !map.isWalkable(goal) || !passable.test(goal)) {
             return List.of();
         }
         if (start.equals(goal)) {
@@ -95,6 +113,9 @@ public final class AStarPathfinder {
             }
 
             for (Position neighbour : map.walkableNeighbours(current.position())) {
+                if (!passable.test(neighbour)) {
+                    continue;
+                }
                 int costToNeighbour = current.costSoFar() + 1 + extraCost.applyAsInt(neighbour);
                 if (costToNeighbour >= cheapestKnown.getOrDefault(neighbour, Integer.MAX_VALUE)) {
                     continue;

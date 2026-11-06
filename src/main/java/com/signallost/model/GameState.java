@@ -9,8 +9,10 @@ import com.signallost.vision.FogOfWar;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -254,23 +256,47 @@ public final class GameState {
         // Standing in somebody's sight, the useful advice is not "the key is
         // that way", it is "get out of view". Progress is no good to a player
         // who is about to be caught making it.
-        Position goal = hintSeeksCover()
-                ? nearestCover(watched)
-                : (hasAllKeys() ? exit : nearestKey(watched));
+        Position objective = hasAllKeys() ? exit : nearestKey(watched);
+        Position goal = hintSeeksCover() ? nearestCover(watched, objective) : objective;
         if (goal == null) {
-            goal = hasAllKeys() ? exit : nearestKey(watched);
-        }
-        if (goal == null) {
-            return List.of();
+            goal = objective;
         }
 
-        List<Position> path = AStarPathfinder.findPath(map, player, goal,
-                tile -> hintCost(tile, watched));
+        // No goal at all means every key is behind a guard this turn. That is
+        // a reason to wait or to hide, not a reason to say nothing.
+        List<Position> path = goal == null ? List.of() : routeTo(goal, watched);
+        if (path.size() <= 1 && !hintSeeksCover()) {
+            // The way to the objective is shut, which on a moving board almost
+            // always means a guard is standing in the one corridor that leads
+            // there. Getting out of sight is still worth saying.
+            Position cover = nearestCover(watched, objective);
+            if (cover != null) {
+                path = routeTo(cover, watched);
+            }
+        }
 
+        if (path.size() <= 1) {
+            // Nothing to walk towards. The honest advice is to stand still and
+            // let whatever is in the way move on, and saying that is far better
+            // than saying nothing: a hint that goes blank looks like a bug, and
+            // the player has paid one of three for it.
+            return List.of(player);
+        }
         // The first entry is the tile the player already stands on.
-        return path.size() <= 1
-                ? List.of()
-                : List.copyOf(path.subList(1, Math.min(path.size(), maxSteps + 1)));
+        return List.copyOf(path.subList(1, Math.min(path.size(), maxSteps + 1)));
+    }
+
+    /**
+     * The cheapest route to a tile that never crosses a guard.
+     *
+     * <p>Guards are closed, not merely expensive: {@code movePlayer} refuses to
+     * walk into one, so a route that crosses a guard produces an arrow pointing
+     * at a move the game will not allow. A player who spends one of three hints
+     * on that has been robbed.
+     */
+    private List<Position> routeTo(Position goal, Set<Position> watched) {
+        return AStarPathfinder.findPath(map, player, goal,
+                tile -> hintCost(tile, watched), tile -> !isGuardOn(tile));
     }
 
     /**
@@ -324,8 +350,8 @@ public final class GameState {
         Position nearest = null;
         int best = Integer.MAX_VALUE;
         for (Position tile : map.findAll(TileType.KEY)) {
-            List<Position> route =
-                    AStarPathfinder.findPath(map, player, tile, step -> hintCost(step, watched));
+            List<Position> route = AStarPathfinder.findPath(map, player, tile,
+                    step -> hintCost(step, watched), step -> !isGuardOn(step));
             if (route.isEmpty()) {
                 continue;
             }
@@ -339,17 +365,26 @@ public final class GameState {
     }
 
     /**
-     * The closest tile no guard can see and none is standing on.
+     * Somewhere out of sight that does not throw away the ground already made.
      *
-     * <p>Breadth-first, so it finds the quickest way out of view rather than
-     * the safest-looking one further off: when a hunter is closing, the number
-     * of turns it takes to disappear is the thing that matters.
+     * <p>This used to return the <em>nearest</em> safe tile, which on a level
+     * with a sweeping patrol is nearly always the tile the player just left. So
+     * the advice alternated: step forward into view, step back out of it, step
+     * forward again. Following it on level 1 produced a hundred and fifty turns
+     * of pacing and never reached the exit — not caught, not lost, just stuck.
+     *
+     * <p>Among safe tiles it now prefers the one that is cheapest to reach
+     * <em>and</em> leaves the player nearest the objective, so hiding is a
+     * sidestep where a sidestep exists and a retreat only where it must be.
+     *
+     * @param objective the key or exit the player is really trying to reach,
+     *                  null when there is nothing to head for
      */
-    private Position nearestCover(Set<Position> watched) {
+    private Position nearestCover(Set<Position> watched, Position objective) {
         Deque<Position> frontier = new ArrayDeque<>();
-        Set<Position> seen = new HashSet<>();
+        Map<Position, Integer> stepsTo = new HashMap<>();
         frontier.add(player);
-        seen.add(player);
+        stepsTo.put(player, 0);
 
         // Out of sight is not far enough while something is hunting. The tile
         // the player is already standing on is often unwatched the turn after a
@@ -357,21 +392,50 @@ public final class GameState {
         // their own feet and then say nothing at all.
         int hunterRoom = closestHunterDistance();
 
+        Position best = null;
+        int bestScore = Integer.MAX_VALUE;
+        int bestSteps = Integer.MAX_VALUE;
+
         while (!frontier.isEmpty()) {
             Position current = frontier.remove();
+            int steps = stepsTo.get(current);
+
+            // Everything reachable in one more step than the best candidate is
+            // still worth comparing; beyond that a nearer hiding place always
+            // wins, and searching the whole level would be pointless.
+            if (best != null && steps > bestSteps + COVER_SIDESTEP_RANGE) {
+                break;
+            }
+
             boolean clearOfHunters = hunterRoom < 0
                     || distanceToClosestHunter(current) > hunterRoom;
             if (!watched.contains(current) && !isGuardOn(current) && clearOfHunters) {
-                return current;
+                int toObjective = objective == null ? 0 : current.manhattanDistanceTo(objective);
+                int score = steps + toObjective;
+                if (score < bestScore) {
+                    bestScore = score;
+                    best = current;
+                    bestSteps = Math.min(bestSteps, steps);
+                }
             }
+
             for (Position neighbour : map.walkableNeighbours(current)) {
-                if (!isGuardOn(neighbour) && seen.add(neighbour)) {
+                if (!isGuardOn(neighbour) && !stepsTo.containsKey(neighbour)) {
+                    stepsTo.put(neighbour, steps + 1);
                     frontier.add(neighbour);
                 }
             }
         }
-        return null;
+        return best;
     }
+
+    /**
+     * How much further than the closest hiding place the search will look.
+     *
+     * <p>Enough to find a sidestep instead of a step backwards, not so much
+     * that the player is sent across the level to hide.
+     */
+    private static final int COVER_SIDESTEP_RANGE = 3;
 
     /** How far the nearest hunting guard is from the player, or -1 if none is. */
     private int closestHunterDistance() {
@@ -592,17 +656,29 @@ public final class GameState {
      * @return true when another attempt began, false when that was the last life
      */
     public boolean beginNextLife() {
-        if (!isAttemptOver()) {
-            return false;
-        }
-        livesLeft--;
-        if (livesLeft <= 0) {
-            livesLeft = 0;
-            runOver = true;
+        if (!isAttemptOver() || runOver) {
             return false;
         }
         respawn();
         return true;
+    }
+
+    /**
+     * Takes the life a capture costs, at the moment it is lost.
+     *
+     * <p>This used to happen when the player pressed "try again", which meant
+     * the banner announcing the capture still counted the life they had just
+     * lost: caught for the first time, it said three lives left. Worse, the
+     * third capture looked survivable and only turned into "run over" after
+     * they asked to carry on. Losing a life is something the game does to you,
+     * not something you agree to.
+     */
+    void loseALife() {
+        livesLeft--;
+        if (livesLeft <= 0) {
+            livesLeft = 0;
+            runOver = true;
+        }
     }
 
     private void respawn() {

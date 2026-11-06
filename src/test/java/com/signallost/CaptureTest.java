@@ -68,7 +68,14 @@ class CaptureTest {
         assertTrue(state.isCaught());
 
         assertFalse(state.isFinished(), "there are lives left");
-        assertEquals(GameState.STARTING_LIVES, state.livesLeft(), "unspent until claimed");
+
+        // The life is gone the moment the hunter reaches you, not when you
+        // press "try again". It used to be deducted on the click, so the
+        // banner announcing the capture still counted the life just lost and
+        // told a player caught for the first time they had three left. A
+        // player reported it; this is the corrected arithmetic.
+        assertEquals(GameState.STARTING_LIVES - 1, state.livesLeft(),
+                "a capture costs a life when it happens");
     }
 
     @Test

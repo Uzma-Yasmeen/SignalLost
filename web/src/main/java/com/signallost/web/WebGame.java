@@ -452,6 +452,11 @@ public final class WebGame {
         }
         resize();
         backdrop();
+        if (heldTheWrongWay()) {
+            hideNameField();
+            drawTurnThePhone();
+            return;
+        }
         switch (screen) {
             case TITLE -> drawTitle();
             case NAME -> drawName();
@@ -460,6 +465,59 @@ public final class WebGame {
             case PLAYING -> drawGame();
             case GOODBYE -> drawGoodbye();
         }
+    }
+
+    /**
+     * A phone held upright, where the game does not fit.
+     *
+     * <p>The manifest asks for a landscape lock and Android honours it, so an
+     * installed app never gets here. iOS does not implement orientation lock at
+     * all — not through the manifest, not through the Screen Orientation API —
+     * so on an iPhone there is no way to ask, only a way to say.
+     *
+     * <p>Narrow <em>and</em> taller than it is wide, so a tall desktop window
+     * is left alone; nobody is going to rotate a monitor.
+     */
+    private static boolean heldTheWrongWay() {
+        return width() < 600 && height() > width();
+    }
+
+    private static void drawTurnThePhone() {
+        double unit = Math.min(width(), height());
+        double midX = width() / 2.0;
+        double midY = height() / 2.0;
+
+        // One phone, lying down, with the turn drawn around it. Two outlines
+        // overlapping read as a mess rather than as a rotation.
+        double w = unit * 0.46;
+        double h = unit * 0.3;
+        box(midX - w / 2, midY - h / 2, w, h, unit * 0.035, PANEL);
+        strokeAlpha(EDGE, 1);
+        g.setLineWidth(unit * 0.008);
+        roundPath(midX - w / 2, midY - h / 2, w, h, unit * 0.035);
+        g.stroke();
+        box(midX - w * 0.42, midY - h * 0.3, w * 0.84, h * 0.6, unit * 0.012, BACKDROP_BOTTOM);
+
+        strokeAlpha(ACCENT, 1);
+        g.setLineWidth(unit * 0.022);
+        g.beginPath();
+        g.arc(midX, midY, unit * 0.36, Math.PI * 1.15, Math.PI * 1.72);
+        g.stroke();
+
+        // The arrowhead, so the arc reads as a direction and not a decoration.
+        double tipX = midX + Math.cos(Math.PI * 1.72) * unit * 0.36;
+        double tipY = midY + Math.sin(Math.PI * 1.72) * unit * 0.36;
+        fill(ACCENT);
+        g.beginPath();
+        g.moveTo(tipX + unit * 0.05, tipY + unit * 0.012);
+        g.lineTo(tipX - unit * 0.025, tipY - unit * 0.03);
+        g.lineTo(tipX - unit * 0.005, tipY + unit * 0.05);
+        g.closePath();
+        g.fill();
+
+        text("TURN YOUR PHONE", midX, midY + unit * 0.56, unit * 0.075, TEXT, "center", true);
+        text("Signal Lost is played sideways", midX, midY + unit * 0.64,
+                unit * 0.045, DIM, "center", false);
     }
 
     /**
