@@ -28,3 +28,4 @@ docs/build-report.py
 docs/render-diagrams.js
 docs/diagram-server.py
 docs/diagrams/
+docs/draw-use-case.py
