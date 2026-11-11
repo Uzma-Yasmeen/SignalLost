@@ -459,7 +459,7 @@ public final class WebGame {
         double h = height() * 0.09;
         double gap = width() * 0.012;
         double left = (width() - (w * count + gap * (count - 1))) / 2;
-        return new double[]{left + index * (w + gap), height() * 0.595, w, h};
+        return new double[]{left + index * (w + gap), height() * 0.605, w, h};
     }
 
     private static int totalStars() {
@@ -828,19 +828,22 @@ public final class WebGame {
 
     private static void drawName() {
         drawBack();
-        text("WHO IS PLAYING?", width() / 2.0, height() * 0.3,
+        // Laid out from the top down with the name box between the subtitle and
+        // the saved players. The box is a real input placed by the page, and
+        // the "or carry on as" line used to be drawn straight underneath it.
+        text("WHO IS PLAYING?", width() / 2.0, height() * 0.2,
                 height() * 0.09, TEXT, "center", true);
         if (nameMissing) {
             text("a name is needed \u2014 your stars are saved under it",
-                    width() / 2.0, height() * 0.38, height() * 0.04, DANGER, "center", true);
+                    width() / 2.0, height() * 0.28, height() * 0.04, DANGER, "center", true);
         } else {
-            text("your stars are saved under this name", width() / 2.0, height() * 0.38,
+            text("your stars are saved under this name", width() / 2.0, height() * 0.28,
                     height() * 0.04, DIM, "center", false);
         }
         List<String> returning = savedPlayers();
         if (!returning.isEmpty()) {
             int count = Math.min(returning.size(), PLAYERS_OFFERED);
-            text("or carry on as", width() / 2.0, height() * 0.555,
+            text("or carry on as", width() / 2.0, height() * 0.57,
                     height() * 0.032, DIM, "center", false);
             for (int i = 0; i < count; i++) {
                 String who = returning.get(i);
@@ -1577,17 +1580,7 @@ public final class WebGame {
             if (inside(verdictButton(true), x, y)) {
                 screen = Screen.LEVELS;
             } else if (inside(verdictButton(false), x, y)) {
-                if (state.hasEscaped()) {
-                    nextLevel();
-                } else if (state.isCaught() && !state.isRunOver()) {
-                    // A new life starts the board again, so the run the server
-                    // will replay starts again with it.
-                    if (state.beginNextLife()) {
-                        moves.setLength(0);
-                    }
-                } else {
-                    startLevel(levelName);
-                }
+                afterVerdict();
             }
             return;
         }
@@ -1628,6 +1621,7 @@ public final class WebGame {
     /** Arrow keys and WASD, because a laptop is a browser too. */
     private static void onKey(KeyboardEvent event) {
         if (screen != Screen.PLAYING || state == null || verdictShowing()) {
+            menuKey(event);
             return;
         }
         Direction move = switch (event.getKey()) {
@@ -1660,6 +1654,112 @@ public final class WebGame {
             event.preventDefault();
             controlAction(control);
             draw();
+        }
+    }
+
+    /**
+     * The keyboard everywhere that is not the board.
+     *
+     * <p>Keys used to work only once a level had started, so a player at a
+     * laptop reached for the mouse on every screen in between and then put it
+     * down again to play. Enter goes forward, Escape goes back, the arrows
+     * choose a character and the number keys choose a level.
+     */
+    private static void menuKey(KeyboardEvent event) {
+        String key = event.getKey();
+        boolean forward = "Enter".equals(key);
+        boolean back = "Escape".equals(key);
+        switch (screen) {
+            case TITLE -> {
+                if (forward || " ".equals(key)) {
+                    screen = Screen.NAME;
+                    showNameField();
+                }
+            }
+            case NAME -> {
+                // Only Enter and Escape: every other key belongs to the name
+                // being typed.
+                if (forward) {
+                    acceptName();
+                    return;
+                } else if (back) {
+                    hideNameField();
+                    screen = Screen.TITLE;
+                } else {
+                    return;
+                }
+            }
+            case CHARACTER -> {
+                Critter[] roster = Critter.values();
+                int at = critter.ordinal();
+                if ("ArrowRight".equals(key) || "d".equals(key) || "D".equals(key)) {
+                    critter = roster[(at + 1) % roster.length];
+                } else if ("ArrowLeft".equals(key) || "a".equals(key) || "A".equals(key)) {
+                    critter = roster[(at + roster.length - 1) % roster.length];
+                } else if (forward || " ".equals(key)) {
+                    screen = Screen.LEVELS;
+                } else if (back) {
+                    screen = Screen.NAME;
+                    showNameField();
+                } else {
+                    return;
+                }
+            }
+            case LEVELS -> {
+                if (back) {
+                    screen = Screen.CHARACTER;
+                } else if (key.length() == 1 && key.charAt(0) >= '0' && key.charAt(0) <= '9') {
+                    // 1 to 9 are levels one to nine, and 0 is the tenth.
+                    int index = key.charAt(0) == '0' ? 9 : key.charAt(0) - '1';
+                    if (index < LEVELS.size() && totalStars() >= UNLOCK.get(index)) {
+                        startLevel(LEVELS.get(index));
+                    }
+                    return;
+                } else {
+                    return;
+                }
+            }
+            case PLAYING -> {
+                // A verdict is showing: Enter takes the button a player wants
+                // next, Escape goes back to the levels.
+                if (state == null) {
+                    return;
+                }
+                if (forward || " ".equals(key)) {
+                    afterVerdict();
+                } else if (back) {
+                    screen = Screen.LEVELS;
+                } else {
+                    return;
+                }
+            }
+            case GOODBYE -> {
+                if (forward) {
+                    screen = Screen.TITLE;
+                } else {
+                    return;
+                }
+            }
+            default -> {
+                return;
+            }
+        }
+        event.preventDefault();
+        draw();
+    }
+
+    /** What the right-hand button on a verdict does: carry on, retry or restart. */
+    private static void afterVerdict() {
+        if (state.hasEscaped()) {
+            nextLevel();
+        } else if (state.isCaught() && !state.isRunOver()) {
+            // A new life starts the board again, so the run the server will
+            // replay starts again with it.
+            if (state.beginNextLife()) {
+                moves.setLength(0);
+            }
+        } else {
+            startLevel(levelName);
         }
     }
 
