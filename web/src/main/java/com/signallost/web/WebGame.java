@@ -117,6 +117,7 @@ public final class WebGame {
         nameField = (HTMLInputElement) document.getElementById("name");
         hideNameField();
         loadCatalogue();
+        lookForAServer();
     }
 
     /**
@@ -163,6 +164,8 @@ public final class WebGame {
         hideNameField();
         screen = Screen.CHARACTER;
         draw();
+        restoreProgressFromServer();
+        refreshStandings();
     }
 
     // ------------------------------------------------------------- loading
@@ -204,6 +207,7 @@ public final class WebGame {
             levelName = name;
             state = new GameState(level.map(), level.guards(),
                     GameState.DEFAULT_SIGHT_RADIUS, level.turnLimit());
+            moves.setLength(0);
             hintTurn = -1;
             screen = Screen.PLAYING;
             draw();
@@ -223,6 +227,164 @@ public final class WebGame {
             }
         });
         request.send();
+    }
+
+    // --------------------------------------------------------------- server
+
+    /**
+     * Whether a leaderboard server answered at this page's own address.
+     *
+     * <p>The game is the same files wherever it is served from. Opened from
+     * the Spring Boot service it finds the API beside it and becomes an online
+     * game; opened from a static host it finds nothing, stays exactly as it
+     * was, and sends nothing to anybody. Nothing about a player leaves the
+     * device until a server has said it is there to receive it.
+     */
+    private static boolean online;
+
+    /** The run in progress, one letter per turn, as the server replays it. */
+    private static final StringBuilder moves = new StringBuilder();
+
+    /** The overall board, each entry a name and a star count. */
+    private static List<String[]> standings = new ArrayList<>();
+
+    private static void lookForAServer() {
+        XMLHttpRequest request = XMLHttpRequest.create();
+        request.open("GET", "api/health");
+        request.setOnReadyStateChange(() -> {
+            if (request.getReadyState() == XMLHttpRequest.DONE && request.getStatus() == 200
+                    && request.getResponseText().contains("\"ok\"")) {
+                online = true;
+                refreshStandings();
+            }
+        });
+        request.send();
+    }
+
+    /** One turn, recorded only if the game accepted it. */
+    private static void step(Direction move) {
+        if (!state.movePlayer(move)) {
+            return;
+        }
+        moves.append(switch (move) {
+            case UP -> 'U';
+            case DOWN -> 'D';
+            case LEFT -> 'L';
+            case RIGHT -> 'R';
+            case WAIT -> 'W';
+        });
+        if (state.hasEscaped()) {
+            record(levelName, state.score().stars());
+            submitRun();
+        }
+    }
+
+    /**
+     * Sends the finished run as moves, never as a score.
+     *
+     * <p>The server replays them against the same rules and works the stars
+     * out itself, so there is no number here for anybody to edit on the way.
+     */
+    private static void submitRun() {
+        if (!online || player.isEmpty() || moves.length() == 0) {
+            return;
+        }
+        XMLHttpRequest request = XMLHttpRequest.create();
+        request.open("POST", "api/runs");
+        request.setRequestHeader("Content-Type", "application/json");
+        request.setOnReadyStateChange(() -> {
+            if (request.getReadyState() == XMLHttpRequest.DONE) {
+                refreshStandings();
+            }
+        });
+        request.send(runAsJson(player, levelName, moves.toString()));
+    }
+
+    private static void refreshStandings() {
+        if (!online) {
+            return;
+        }
+        fetch("api/leaderboard?limit=8", body -> {
+            List<String[]> rows = new ArrayList<>();
+            for (String line : flattenStandings(body).split("\n")) {
+                String[] cells = line.split("\t");
+                if (cells.length == 2) {
+                    rows.add(cells);
+                }
+            }
+            standings = rows;
+            draw();
+        });
+    }
+
+    /**
+     * Brings back whatever this name has earned on any device.
+     *
+     * <p>Progress kept only in the browser is lost with the browser. The best
+     * of the two is kept for each level, so signing in can never cost a star.
+     */
+    private static void restoreProgressFromServer() {
+        if (!online || player.isEmpty()) {
+            return;
+        }
+        fetch("api/players/" + encode(player) + "/progress", body -> {
+            for (String entry : flattenProgress(body).split(",")) {
+                String[] pair = entry.split("=");
+                if (pair.length == 2) {
+                    record(pair[0], Integer.parseInt(pair[1]));
+                }
+            }
+            draw();
+        });
+    }
+
+    @JSBody(params = {"player", "level", "moves"}, script =
+            "return JSON.stringify({playerName: player, levelName: level, moves: moves});")
+    private static native String runAsJson(String player, String level, String moves);
+
+    @JSBody(params = {"text"}, script = "return encodeURIComponent(text);")
+    private static native String encode(String text);
+
+    @JSBody(params = {"text"}, script =
+            "try { return JSON.parse(text).map(function (e) {"
+            + " return e.playerName + '\\t' + e.stars; }).join('\\n'); }"
+            + " catch (e) { return ''; }")
+    private static native String flattenStandings(String text);
+
+    @JSBody(params = {"text"}, script =
+            "try { var l = JSON.parse(text).levels; return Object.keys(l).map(function (k) {"
+            + " return k + '=' + l[k]; }).join(','); } catch (e) { return ''; }")
+    private static native String flattenProgress(String text);
+
+    /** The board beside the levels: everyone on this server, by total stars. */
+    private static void drawStandings() {
+        double left = width() * 0.76;
+        double top = height() * 0.22;
+        double w = width() * 0.2;
+        double h = height() * 0.72;
+        box(left, top, w, h, w * 0.06, PANEL);
+        strokeAlpha(EDGE, 1);
+        g.setLineWidth(2);
+        roundPath(left, top, w, h, w * 0.06);
+        g.stroke();
+
+        fitted("LEADERBOARD", left + w / 2, top + h * 0.1, h * 0.065, w * 0.86, TEXT, true);
+        if (standings.isEmpty()) {
+            fitted("no runs yet", left + w / 2, top + h * 0.5, h * 0.05, w * 0.8, DIM, false);
+        }
+        double row = h * 0.092;
+        for (int i = 0; i < standings.size(); i++) {
+            String[] entry = standings.get(i);
+            boolean me = entry[0].equalsIgnoreCase(player);
+            double y = top + h * 0.22 + i * row;
+            double size = row * 0.5;
+            text((i + 1) + ".", left + w * 0.08, y, size, DIM, "left", false);
+            String name = entry[0].length() > 11 ? entry[0].substring(0, 10) + "…" : entry[0];
+            text(name.toUpperCase(), left + w * 0.22, y, size, me ? ACCENT : TEXT, "left", me);
+            text(entry[1] + "★", left + w * 0.93, y, size, KEY, "right", true);
+        }
+        fitted("scores are shared on this server", left + w / 2, top + h * 0.955,
+                h * 0.036, w * 0.9, DIM, false);
     }
 
     // ------------------------------------------------------------- progress
@@ -854,6 +1016,9 @@ public final class WebGame {
                 height() * 0.07, TEXT, "center", true);
         text(totalStars() + " of " + (LEVELS.size() * 3) + " stars",
                 width() / 2.0, height() * 0.17, height() * 0.04, DIM, "center", false);
+        if (online) {
+            drawStandings();
+        }
         for (int i = 0; i < LEVELS.size(); i++) {
             double[] b = levelBox(i);
             boolean open = totalStars() >= UNLOCK.get(i);
@@ -879,7 +1044,10 @@ public final class WebGame {
         int columns = 5;
         double margin = width() * 0.04;
         double gap = width() * 0.015;
-        double w = (width() - margin * 2 - gap * (columns - 1)) / columns;
+        // With a server answering, the grid gives up its right-hand quarter to
+        // the leaderboard. Without one it keeps the whole width, as before.
+        double right = online ? width() * 0.74 : width() - margin;
+        double w = (right - margin - gap * (columns - 1)) / columns;
         double h = (height() * 0.72 - gap) / 2;
         return new double[]{margin + (index % columns) * (w + gap),
                 height() * 0.22 + (index / columns) * (h + gap), w, h};
@@ -1412,7 +1580,11 @@ public final class WebGame {
                 if (state.hasEscaped()) {
                     nextLevel();
                 } else if (state.isCaught() && !state.isRunOver()) {
-                    state.beginNextLife();
+                    // A new life starts the board again, so the run the server
+                    // will replay starts again with it.
+                    if (state.beginNextLife()) {
+                        moves.setLength(0);
+                    }
                 } else {
                     startLevel(levelName);
                 }
@@ -1435,14 +1607,11 @@ public final class WebGame {
         int downwards = (int) Math.floor((y - boardTop()) / t) - state.player().row();
         int rightwards = (int) Math.floor((x - boardLeft()) / t) - state.player().col();
         if (downwards == 0 && rightwards == 0) {
-            state.movePlayer(Direction.WAIT);
+            step(Direction.WAIT);
         } else {
-            state.movePlayer(Math.abs(downwards) >= Math.abs(rightwards)
+            step(Math.abs(downwards) >= Math.abs(rightwards)
                     ? (downwards < 0 ? Direction.UP : Direction.DOWN)
                     : (rightwards < 0 ? Direction.LEFT : Direction.RIGHT));
-        }
-        if (state.hasEscaped()) {
-            record(levelName, state.score().stars());
         }
     }
 
@@ -1471,10 +1640,7 @@ public final class WebGame {
         };
         if (move != null) {
             event.preventDefault();
-            state.movePlayer(move);
-            if (state.hasEscaped()) {
-                record(levelName, state.score().stars());
-            }
+            step(move);
             draw();
             return;
         }
@@ -1505,7 +1671,13 @@ public final class WebGame {
     /** What a control does, whether it was clicked, tapped or typed. */
     private static void controlAction(int control) {
         switch (control) {
-            case UNDO_CONTROL -> state.undoLastMove();
+            case UNDO_CONTROL -> {
+                // The move comes off the record too, so what is sent to the
+                // server is the run as it finally stood.
+                if (state.undoLastMove() && moves.length() > 0) {
+                    moves.setLength(moves.length() - 1);
+                }
+            }
             case HINT_CONTROL -> {
                 if (hintTurn != state.turnsTaken() && state.spendHint()) {
                     hintTurn = state.turnsTaken();

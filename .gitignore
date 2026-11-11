@@ -29,3 +29,6 @@ docs/render-diagrams.js
 docs/diagram-server.py
 docs/diagrams/
 docs/draw-use-case.py
+
+# The backend's own database file
+server/data/

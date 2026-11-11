@@ -1,6 +1,7 @@
 package com.signallost.server.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.test.web.servlet.MvcResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.signallost.server.WinningRun;
 
@@ -63,6 +64,57 @@ class LeaderboardApiTest {
                 .andExpect(jsonPath("$.stars").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.turns").value(winningMoves.length()))
                 .andExpect(jsonPath("$.id").isNumber());
+    }
+
+    @Test
+    @DisplayName("A player's progress can be fetched back, on any device")
+    void progressIsStoredForThePlayer() throws Exception {
+        http.perform(post("/api/runs").contentType(MediaType.APPLICATION_JSON)
+                .content(body("Namtha", LEVEL, winningMoves))).andExpect(status().isCreated());
+
+        // Asked for in a different case, as somebody retyping their own name
+        // would. A name that differs only in capitals is the same player.
+        http.perform(get("/api/players/namtha/progress"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.levels." + LEVEL)
+                        .value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.totalStars")
+                        .value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)));
+    }
+
+    @Test
+    @DisplayName("Somebody who has never played has no progress, not an error")
+    void anUnknownPlayerHasNoProgress() throws Exception {
+        http.perform(get("/api/players/nobody-by-this-name/progress"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalStars").value(0))
+                .andExpect(jsonPath("$.levels").isEmpty());
+    }
+
+    @Test
+    @DisplayName("The overall board counts each level once, at the player's best")
+    void standingsSumTheBestOfEachLevel() throws Exception {
+        // Twice on the same level. Adding the runs together would double the
+        // stars; the board has to add up bests, not attempts.
+        MvcResult first = http.perform(post("/api/runs").contentType(MediaType.APPLICATION_JSON)
+                .content(body("Tally", LEVEL, winningMoves)))
+                .andExpect(status().isCreated()).andReturn();
+        http.perform(post("/api/runs").contentType(MediaType.APPLICATION_JSON)
+                .content(body("Tally", LEVEL, winningMoves))).andExpect(status().isCreated());
+        int starsForOneRun = json.readTree(first.getResponse().getContentAsString())
+                .get("stars").asInt();
+
+        MvcResult board = http.perform(get("/api/leaderboard?limit=50"))
+                .andExpect(status().isOk()).andReturn();
+        for (JsonNode row : json.readTree(board.getResponse().getContentAsString())) {
+            if ("Tally".equals(row.get("playerName").asText())) {
+                assertEquals(starsForOneRun, row.get("stars").asInt(),
+                        "two runs of one level are one level's worth of stars");
+                assertEquals(1, row.get("levelsFinished").asInt());
+                return;
+            }
+        }
+        throw new AssertionError("Tally is missing from the overall board");
     }
 
     @Test

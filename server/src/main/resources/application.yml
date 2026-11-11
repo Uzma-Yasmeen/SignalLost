@@ -1,12 +1,20 @@
-# Default profile: an in-memory database, so the service starts with no setup
-# at all. That matters more than it sounds — a backend you cannot run without
-# first installing a database is a backend nobody checks out and tries.
+# Default profile: an embedded database kept in a file beside the server, so
+# the service starts with nothing to install and still remembers its players
+# after a restart. A backend you cannot run without first setting up a database
+# is a backend nobody tries; one that forgets everyone when it stops is not
+# storing users at all.
 spring:
   application:
     name: signal-lost-leaderboard
 
   datasource:
-    url: jdbc:h2:mem:signallost;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    url: jdbc:h2:file:./data/signallost;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+
+  # The browser build is served from here too, so the game and its API share
+  # an origin: one address to open, and no cross-origin rules to configure.
+  web:
+    resources:
+      static-locations: classpath:/static/,file:../web/dist/
     driver-class-name: org.h2.Driver
     username: sa
     password: ""

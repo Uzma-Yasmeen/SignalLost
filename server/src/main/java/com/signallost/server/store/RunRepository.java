@@ -41,6 +41,58 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             """, nativeQuery = true)
     List<Run> bestPerPlayerOn(@Param("levelName") String levelName, Limit limit);
 
+    /**
+     * One player's best star count on each level they have finished.
+     *
+     * <p>This is the player's saved progress, and it is a query rather than a
+     * table for the same reason "best run" is: the runs are the record, and
+     * anything derived from them stays correct by being derived every time.
+     */
+    @Query(value = """
+            SELECT r.level_name AS levelName, MAX(r.stars) AS stars
+              FROM run r
+              JOIN player p ON p.id = r.player_id
+             WHERE LOWER(p.display_name) = LOWER(:playerName)
+             GROUP BY r.level_name
+            """, nativeQuery = true)
+    List<LevelStars> bestStarsPerLevel(@Param("playerName") String playerName);
+
+    /**
+     * Everybody, ranked by the stars they hold across all levels.
+     *
+     * <p>A player's total is the sum of their best on each level, so the inner
+     * query finds the bests and the outer one adds them up. Ties go to whoever
+     * has finished more levels, then to the earlier name, so the order is
+     * stable from one request to the next.
+     */
+    @Query(value = """
+            SELECT best.display_name AS playerName,
+                   SUM(best.stars) AS stars,
+                   COUNT(*) AS levelsFinished
+              FROM (
+                    SELECT p.display_name, r.level_name, MAX(r.stars) AS stars
+                      FROM run r
+                      JOIN player p ON p.id = r.player_id
+                     GROUP BY p.display_name, r.level_name
+                   ) best
+             GROUP BY best.display_name
+             ORDER BY SUM(best.stars) DESC, COUNT(*) DESC, best.display_name ASC
+            """, nativeQuery = true)
+    List<Standing> standings(Limit limit);
+
+    /** A level and the most stars one player has earned on it. */
+    interface LevelStars {
+        String getLevelName();
+        int getStars();
+    }
+
+    /** One row of the overall leaderboard. */
+    interface Standing {
+        String getPlayerName();
+        long getStars();
+        long getLevelsFinished();
+    }
+
     List<Run> findByPlayerDisplayNameOrderBySubmittedAtDesc(String displayName, Limit limit);
 
     long countByLevelName(String levelName);

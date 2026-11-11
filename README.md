@@ -10,7 +10,7 @@ it runs fullscreen and offline like an app — on iPhone as well as Android.
 [![build](https://github.com/Uzma-Yasmeen/SignalLost/actions/workflows/build.yml/badge.svg)](https://github.com/Uzma-Yasmeen/SignalLost/actions/workflows/build.yml)
 ![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
 ![Maven](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-230%20passing-success)
+![Tests](https://img.shields.io/badge/tests-281%20passing-success)
 ![No dependencies](https://img.shields.io/badge/runtime%20dependencies-none-blue)
 ![Licence](https://img.shields.io/badge/licence-MIT-green)
 
@@ -93,13 +93,13 @@ mvn -q test
 
 ## Under the hood
 
-**The rules know nothing about the screen.** All 2,951 lines of game logic — the
+**The rules know nothing about the screen.** All 3,688 lines of game logic — the
 fog, the pathfinding, the guards, the undo stack, the scoring — contain no
 reference to Swing or AWT, and
 [a test](src/test/java/com/signallost/ArchitectureTest.java) fails the build if
-anybody adds one. That is why 200 tests run without opening a window, and why
-putting this on a phone would mean writing a new front end rather than a new
-game.
+anybody adds one. That is why 260 tests run without opening a window, and why
+putting it in a browser, on a phone and behind a server meant writing new
+front ends rather than a new game.
 
 Two searches do the work: a flood fill for what you can see, and A\* for the
 hunter's chase. The hint system reuses that same pathfinder over a weighted cost
@@ -139,12 +139,26 @@ The detail that used to live here, moved somewhere it can be read on purpose:
 | [Proving it works](docs/testing.md) | the game-tree solver, and the bug that beat the test suite |
 | [Running it somewhere that is not a desktop](docs/portability.md) | what an Android port would actually have to change |
 
-## Still to build
+## The backend
 
-| Step | What it adds |
-| --- | --- |
-| 7 | SRS document and UML class and sequence diagrams |
-| 8 | Phase 2: a Spring Boot and PostgreSQL leaderboard with a daily level |
+A Spring Boot service that stores players, keeps a leaderboard, and gives a
+player their progress back on any device. It never accepts a score: the game
+sends the moves it made, and the server replays them through the same rules to
+work the result out itself, so a run cannot be faked without actually playing it.
+
+On Windows, double-click `run-server.bat`. Otherwise:
+
+```bash
+mvn -q install -DskipTests && mvn -q -f web/pom.xml package && python web/assemble.py
+```
+
+```bash
+mvn -f server/pom.xml spring-boot:run
+```
+
+Then open http://localhost:8080 — the same browser game, now with a leaderboard
+beside the levels. It needs nothing installed: the database is an embedded file,
+and a `postgres` profile switches it to PostgreSQL.
 
 ## Licence
 

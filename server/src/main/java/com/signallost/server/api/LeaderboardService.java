@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Accepts runs and answers leaderboards.
@@ -64,6 +66,34 @@ public class LeaderboardService {
         return runs.findByPlayerDisplayNameOrderBySubmittedAtDesc(playerName.trim(),
                         Limit.of(capped)).stream()
                 .map(RunResponse::of)
+                .toList();
+    }
+
+    /**
+     * A player's saved progress: their best stars on every level finished.
+     *
+     * <p>This is what lets somebody sign in on a second device and find their
+     * levels unlocked. An unknown name is not an error, it is a player with no
+     * progress yet.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Integer> progressOf(String playerName) {
+        Map<String, Integer> stars = new TreeMap<>();
+        for (RunRepository.LevelStars best : runs.bestStarsPerLevel(playerName.trim())) {
+            stars.put(best.getLevelName(), best.getStars());
+        }
+        return stars;
+    }
+
+    /** The overall leaderboard: total stars across all levels, best first. */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> standings(int limit) {
+        int capped = Math.max(1, Math.min(limit, MAX_LEADERBOARD));
+        return runs.standings(Limit.of(capped)).stream()
+                .map(row -> Map.<String, Object>of(
+                        "playerName", row.getPlayerName(),
+                        "stars", row.getStars(),
+                        "levelsFinished", row.getLevelsFinished()))
                 .toList();
     }
 

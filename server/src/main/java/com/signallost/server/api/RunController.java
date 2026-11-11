@@ -60,6 +60,28 @@ public class RunController {
                 "entries", entries);
     }
 
+    /** Every player ranked by total stars, for the board beside the levels. */
+    @GetMapping("/leaderboard")
+    public List<Map<String, Object>> standings(@RequestParam(defaultValue = "10") int limit) {
+        return leaderboards.standings(limit);
+    }
+
+    /**
+     * One player's saved progress.
+     *
+     * <p>The game keeps progress on the device, which is lost with the device
+     * and invisible from any other. Asking here on sign-in is what makes a
+     * name mean the same player everywhere.
+     */
+    @GetMapping("/players/{playerName}/progress")
+    public Map<String, Object> progress(@PathVariable String playerName) {
+        Map<String, Integer> levels = leaderboards.progressOf(playerName);
+        return Map.of(
+                "player", playerName.trim(),
+                "totalStars", levels.values().stream().mapToInt(Integer::intValue).sum(),
+                "levels", levels);
+    }
+
     /** Everything one player has submitted, most recent first. */
     @GetMapping("/players/{playerName}/runs")
     public List<RunResponse> history(
