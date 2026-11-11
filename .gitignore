@@ -32,3 +32,4 @@ docs/draw-use-case.py
 
 # The backend's own database file
 server/data/
+docs/sru-logo.png
